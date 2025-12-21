@@ -116,7 +116,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format response for Discord\nconst response = $input.first().json;\n\nif (!response.success) {\n  // Error case - send error notification\n  return [{\n    json: {\n      content: `**AI News Bot Error**\\n\\nFailed to generate summary.\\nError: ${response.error || 'Unknown error'}\\nTime: ${new Date().toISOString()}`\n    }\n  }];\n}\n\n// Success case - send embed\nreturn [{\n  json: {\n    embeds: [{\n      title: \"Daily AI/ML News Digest\",\n      description: response.summary,\n      color: 5814783,\n      timestamp: new Date().toISOString(),\n      footer: {\n        text: `Powered by Claude | ${response.article_count} articles analyzed`\n      }\n    }]\n  }\n}];"
+        "jsCode": "// Format response for Discord - only send on success\nconst response = $input.first().json;\n\nif (!response.success) {\n  // Error case - do NOT send to Discord, just log and stop flow\n  console.log('Claude CLI failed:', response.error);\n  return []; // Empty array stops the flow here\n}\n\n// Success case - send embed\nreturn [{\n  json: {\n    embeds: [{\n      title: \"Daily AI/ML News Digest\",\n      description: response.summary,\n      color: 5814783,\n      timestamp: new Date().toISOString(),\n      footer: {\n        text: `Powered by Claude | ${response.article_count} articles analyzed`\n      }\n    }]\n  }\n}];"
       },
       "id": "code-discord",
       "name": "Format Discord",
