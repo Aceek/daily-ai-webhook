@@ -70,17 +70,22 @@ daily-ai-webhook/
 
 ## Système de Logs
 
-Chaque exécution du workflow génère des logs détaillés dans `logs/`.
+Deux types de logs sont générés pour chaque exécution du workflow.
 
-### Fichiers générés
+### Structure des fichiers
 
 ```
 logs/
-├── 2024-12-21_08-00-00_abc123.md    # Lisible (Markdown)
-└── 2024-12-21_08-00-00_abc123.json  # Parsable (JSON)
+├── 2024-12-21_08-00-00_abc123.md       # Log Claude (Markdown)
+├── 2024-12-21_08-00-00_abc123.json     # Log Claude (JSON)
+└── workflows/
+    ├── 2024-12-21_08-00-00_wf-xxx.md   # Log Workflow (Markdown)
+    └── 2024-12-21_08-00-00_wf-xxx.json # Log Workflow (JSON)
 ```
 
-### Contenu capturé
+### Logs Claude (logs/)
+
+Capturent l'exécution de Claude CLI via `/summarize`.
 
 | Section | Description |
 |---------|-------------|
@@ -90,15 +95,55 @@ logs/
 | **Prompt** | Prompt complet envoyé à Claude |
 | **Response** | Réponse générée |
 | **Metrics** | Tokens in/out, coût USD, durée |
+| **workflow_execution_id** | ID du workflow parent (corrélation) |
+
+### Logs Workflow (logs/workflows/)
+
+Capturent l'exécution du workflow n8n (succès ET échecs).
+
+| Champ | Description |
+|-------|-------------|
+| **workflow_execution_id** | ID unique de l'exécution (format: `wf-{timestamp}-{random}`) |
+| **workflow_name** | Nom du workflow n8n |
+| **started_at** | Timestamp de début (ISO) |
+| **finished_at** | Timestamp de fin (ISO) |
+| **duration_seconds** | Durée totale de l'exécution |
+| **status** | `success` ou `error` |
+| **error_message** | Message d'erreur (si échec) |
+| **error_node** | Node qui a échoué (si échec) |
+| **nodes_executed** | Liste des nodes exécutés avec leur status |
+| **articles_count** | Nombre d'articles traités |
+| **claude_execution_id** | ID du log Claude correspondant (corrélation) |
+| **discord_sent** | Boolean indiquant si le message Discord a été envoyé |
+
+### Corrélation bidirectionnelle
+
+Les logs sont liés par des IDs croisés :
+- **Workflow log** contient `claude_execution_id` -> pointe vers le log Claude
+- **Claude log** contient `workflow_execution_id` -> pointe vers le log Workflow
+
+Cela permet de naviguer entre les deux types de logs pour une même exécution.
 
 ### Consulter les logs
 
 ```bash
-# Dernier log
+# Dernier log Claude
 ls -t logs/*.md | head -1 | xargs cat
 
-# Logs d'aujourd'hui
+# Logs Claude d'aujourd'hui
 ls logs/$(date +%Y-%m-%d)*.md
+
+# Dernier log workflow
+ls -t logs/workflows/*.md | head -1 | xargs cat
+
+# Workflows en erreur
+grep -l '"status": "error"' logs/workflows/*.json
+
+# Corrélation : trouver le log Claude d'un workflow
+cat logs/workflows/2024-12-21_*.json | jq '.claude_execution_id'
+
+# Corrélation : trouver le log workflow d'un log Claude
+cat logs/2024-12-21_*.json | jq '.workflow_execution_id'
 ```
 
 ### Note
