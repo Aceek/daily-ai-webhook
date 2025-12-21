@@ -561,6 +561,7 @@ def create_execution_log(
     output_tokens: int = 0,
     cost_usd: float = 0.0,
     workflow_execution_id: str | None = None,
+    execution_id: str | None = None,
 ) -> ExecutionLog:
     """Factory function to create an ExecutionLog from raw data.
 
@@ -576,6 +577,7 @@ def create_execution_log(
         output_tokens: Number of output tokens used.
         cost_usd: Total cost in USD.
         workflow_execution_id: Optional ID of the n8n workflow execution for correlation.
+        execution_id: Optional execution ID (generated if not provided).
 
     Returns:
         Populated ExecutionLog instance.
@@ -601,13 +603,18 @@ def create_execution_log(
         total_cost_usd=cost_usd,
     )
 
-    return ExecutionLog(
-        success=success,
-        error=error,
-        workflow_execution_id=workflow_execution_id,
-        articles=article_logs,
-        prompt_sent=prompt,
-        claude_response=response,
-        timeline=timeline or [],
-        metrics=metrics,
-    )
+    # Build kwargs, only include execution_id if provided
+    log_kwargs = {
+        "success": success,
+        "error": error,
+        "workflow_execution_id": workflow_execution_id,
+        "articles": article_logs,
+        "prompt_sent": prompt,
+        "claude_response": response,
+        "timeline": timeline or [],
+        "metrics": metrics,
+    }
+    if execution_id:
+        log_kwargs["execution_id"] = execution_id
+
+    return ExecutionLog(**log_kwargs)

@@ -36,12 +36,20 @@ class Settings(BaseSettings):
     """
 
     claude_model: str = "sonnet"
-    claude_timeout: int = 120
+    claude_timeout: int = 600  # Increased for agentic workflow
     retry_count: int = 1
-    rules_path: str = "/app/config/rules.md"
-    editorial_guide_path: str = "/app/config/editorial-guide.md"
     logs_path: str = "/app/logs"
     log_level: str = "info"
+
+    # Claude config paths (mounted from claude-config/)
+    claude_instructions_path: str = "/root/.claude/CLAUDE.md"
+    selection_rules_path: str = "/root/.claude/docs/selection-rules.md"
+    editorial_guide_path: str = "/root/.claude/docs/editorial-guide.md"
+    output_schema_path: str = "/root/.claude/docs/output-schema.md"
+    research_template_path: str = "/root/.claude/docs/research-template.md"
+
+    # Allowed tools for agentic workflow
+    allowed_tools: str = "WebSearch,WebFetch,Write,Task"
 
     class Config:
         """Pydantic settings configuration."""
@@ -176,60 +184,84 @@ def load_file(path: str) -> str:
         return ""
 
 
-def build_prompt(articles: list[Article]) -> str:
-    """Build the prompt for Claude CLI.
+def build_prompt(articles: list[Article], execution_id: str, workflow_execution_id: str | None = None) -> str:
+    """Build the enriched prompt for agentic Claude CLI.
 
-    Constructs a complete prompt including selection rules,
-    editorial guidelines, and the articles to analyze.
+    Constructs a complete prompt including agent instructions,
+    selection rules, editorial guidelines, output schema,
+    and the articles to analyze.
 
     Args:
         articles: List of articles to include in the prompt.
+        execution_id: Unique execution ID for this run.
+        workflow_execution_id: Optional n8n workflow execution ID.
 
     Returns:
         Complete prompt string for Claude CLI.
     """
-    rules = load_file(settings.rules_path)
-    guide = load_file(settings.editorial_guide_path)
+    # Load all configuration files
+    instructions = load_file(settings.claude_instructions_path)
+    selection_rules = load_file(settings.selection_rules_path)
+    editorial_guide = load_file(settings.editorial_guide_path)
+    output_schema = load_file(settings.output_schema_path)
 
+    # Format articles
     articles_text = "\n---\n".join(
         [
             f"[{i + 1}] {a.title}\n"
             f"Source: {a.source}\n"
             f"URL: {a.url}\n"
             f"Date: {a.pub_date}\n"
-            f"Summary: {a.description[:500]}"
+            f"Description: {a.description[:500] if a.description else 'N/A'}"
             for i, a in enumerate(articles)
         ]
     )
 
-    return f"""You are an AI/ML news editor. Your task is to analyze the following articles and produce a daily news summary.
+    # Generate research document path
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    research_path = f"/app/logs/research/{timestamp}_{execution_id}_research.md"
+
+    return f"""{instructions}
 
 === SELECTION RULES ===
-{rules}
+{selection_rules}
 
 === EDITORIAL GUIDELINES ===
-{guide}
+{editorial_guide}
+
+=== OUTPUT SCHEMA ===
+{output_schema}
 
 === ARTICLES TO ANALYZE ({len(articles)} articles) ===
-{articles_text if articles else "No articles provided today."}
+{articles_text if articles else "No articles provided by primary sources today."}
 
-=== INSTRUCTIONS ===
-1. Analyze all articles according to the selection rules
-2. If no articles are relevant or provided, write a brief message explaining there's no significant AI news today
-3. Select the most relevant and important news
-4. Write the summary following the editorial guidelines exactly
-5. Use the exact format specified (TOP HEADLINES, etc.)
-6. Keep it under 2000 characters total
-7. Output ONLY the formatted summary, nothing else
+=== EXECUTION PARAMETERS ===
+- Execution ID: {execution_id}
+- Workflow ID: {workflow_execution_id or "standalone"}
+- Research Document Path: {research_path}
+- Date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
-Generate the summary now:"""
+=== FINAL INSTRUCTIONS ===
+
+1. Analyze all articles above following the selection rules
+2. Perform 3-5 web searches to complement/validate (MANDATORY)
+3. Use sub-agents if necessary (fact-checker for dubious sources, topic-diver for major announcements)
+4. Write the research document to: {research_path}
+5. Return the final JSON according to the output schema
+
+IMPORTANT:
+- The research document MUST be written BEFORE your final response
+- Your final response must be ONLY the structured JSON
+- If no significant news today, still produce a valid JSON with empty arrays and a note in metadata
+"""
 
 
 async def call_claude_cli(prompt: str) -> ClaudeResult:
-    """Call Claude Code CLI with the given prompt using stream-json format.
+    """Call Claude Code CLI with agentic capabilities.
 
     Executes claude CLI as a subprocess with retry logic
-    and timeout handling. Captures full execution timeline.
+    and timeout handling. Enables WebSearch, WebFetch, Write,
+    and Task tools for intelligent news research.
 
     Args:
         prompt: The prompt to send to Claude CLI.
@@ -237,7 +269,13 @@ async def call_claude_cli(prompt: str) -> ClaudeResult:
     Returns:
         ClaudeResult with response, timeline, and metrics.
     """
-    cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+    cmd = [
+        "claude",
+        "-p", prompt,
+        "--allowedTools", settings.allowed_tools,
+        "--output-format", "stream-json",
+        "--verbose",
+    ]
 
     for attempt in range(settings.retry_count + 1):
         try:
@@ -373,14 +411,23 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     Returns:
         Summary response with success status and generated content.
     """
+    import uuid
+
     logger.info("Received %d articles to summarize", len(request.articles))
+
+    # Generate execution ID early so it can be passed to build_prompt
+    execution_id = uuid.uuid4().hex[:12]
 
     start_time = time.time()
     prompt = ""
     claude_result: ClaudeResult | None = None
 
     try:
-        prompt = build_prompt(request.articles)
+        prompt = build_prompt(
+            articles=request.articles,
+            execution_id=execution_id,
+            workflow_execution_id=request.workflow_execution_id,
+        )
         claude_result = await call_claude_cli(prompt)
 
         if claude_result.success:
@@ -408,6 +455,7 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         output_tokens=claude_result.output_tokens if claude_result else 0,
         cost_usd=claude_result.cost_usd if claude_result else 0.0,
         workflow_execution_id=request.workflow_execution_id,
+        execution_id=execution_id,
     )
 
     try:
