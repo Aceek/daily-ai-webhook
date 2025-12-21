@@ -19,15 +19,19 @@ Système automatisé de veille AI/ML : collecte, analyse et publication Discord.
 
 ```
 daily-ai-webhook/
-├── docker-compose.yml     # n8n container
-├── config/                # PRODUCTION: règles éditoriales (n8n → Claude CLI)
+├── docker-compose.yml        # n8n + claude-service containers
+├── claude-service/           # HTTP wrapper pour Claude CLI
+│   ├── main.py               # FastAPI avec /summarize endpoint
+│   ├── execution_logger.py   # Système de logs détaillés
+│   ├── Dockerfile
+│   └── config.yaml
+├── config/                   # PRODUCTION: règles éditoriales
 │   ├── rules.md
 │   ├── sources.md
 │   └── editorial-guide.md
-├── scripts/               # Scripts d'exécution
-│   └── summarize.sh
-├── bot/                   # Discord bot (Phase 2, Python)
-└── workflows/             # Exports n8n (backup)
+├── logs/                     # Logs d'exécution (1 fichier/run, gitignored)
+├── workflows/                # Exports n8n (backup)
+└── bot/                      # Discord bot (Phase 2, Python)
 ```
 
 **Séparation des contextes:**
@@ -64,6 +68,43 @@ daily-ai-webhook/
 - Branches: `feature/`, `fix/`
 - **Pas de mention Claude Code** dans les messages de commit
 
+## Système de Logs
+
+Chaque exécution du workflow génère des logs détaillés dans `logs/`.
+
+### Fichiers générés
+
+```
+logs/
+├── 2024-12-21_08-00-00_abc123.md    # Lisible (Markdown)
+└── 2024-12-21_08-00-00_abc123.json  # Parsable (JSON)
+```
+
+### Contenu capturé
+
+| Section | Description |
+|---------|-------------|
+| **Metadata** | ID, timestamp, status, durée, tokens, coût |
+| **Timeline** | Événements Claude CLI (init, tool_use, result) |
+| **Articles** | Liste des articles reçus |
+| **Prompt** | Prompt complet envoyé à Claude |
+| **Response** | Réponse générée |
+| **Metrics** | Tokens in/out, coût USD, durée |
+
+### Consulter les logs
+
+```bash
+# Dernier log
+ls -t logs/*.md | head -1 | xargs cat
+
+# Logs d'aujourd'hui
+ls logs/$(date +%Y-%m-%d)*.md
+```
+
+### Note
+
+Les logs sont gitignored (données locales uniquement).
+
 ## Workflow Agentique
 
 ### Pour chaque feature:
@@ -82,7 +123,7 @@ Chat direct sans workflow complet.
 
 | Phase | Statut | Description |
 |-------|--------|-------------|
-| MVP | EN COURS | n8n + 3 RSS + Claude CLI + Discord webhook |
+| MVP | ✅ TERMINÉ | n8n + 3 RSS + Claude CLI + Discord webhook + Logs |
 | Enrichissement | - | Reddit, HN, embeds améliorés |
 | Bot | - | discord.py, commandes slash |
 
@@ -94,4 +135,4 @@ Chat direct sans workflow complet.
 
 ## Fichiers Sensibles
 
-Ne jamais commit: `.env`, `*.credentials.json`, `n8n-data/`
+Ne jamais commit: `.env`, `*.credentials.json`, `n8n-data/`, `logs/*`
