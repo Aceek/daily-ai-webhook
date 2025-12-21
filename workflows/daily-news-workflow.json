@@ -60,6 +60,7 @@
     {
       "parameters": {
         "mode": "append",
+        "numberInputs": 3,
         "options": {}
       },
       "id": "merge-articles",
