@@ -560,6 +560,7 @@ def create_execution_log(
     input_tokens: int = 0,
     output_tokens: int = 0,
     cost_usd: float = 0.0,
+    workflow_execution_id: str | None = None,
 ) -> ExecutionLog:
     """Factory function to create an ExecutionLog from raw data.
 
@@ -574,6 +575,7 @@ def create_execution_log(
         input_tokens: Number of input tokens used.
         output_tokens: Number of output tokens used.
         cost_usd: Total cost in USD.
+        workflow_execution_id: Optional ID of the n8n workflow execution for correlation.
 
     Returns:
         Populated ExecutionLog instance.
@@ -602,6 +604,7 @@ def create_execution_log(
     return ExecutionLog(
         success=success,
         error=error,
+        workflow_execution_id=workflow_execution_id,
         articles=article_logs,
         prompt_sent=prompt,
         claude_response=response,

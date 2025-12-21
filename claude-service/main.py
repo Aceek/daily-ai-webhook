@@ -9,7 +9,9 @@ This service wraps Claude Code CLI to expose it as an HTTP API.
 import asyncio
 import logging
 import time
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -17,7 +19,10 @@ from pydantic_settings import BaseSettings
 
 from execution_logger import (
     ExecutionLogger,
+    NodeExecutionLog,
     StreamEvent,
+    WorkflowLog,
+    WorkflowLogger,
     create_execution_log,
     parse_stream_event,
 )
@@ -56,6 +61,9 @@ logger = logging.getLogger("claude-service")
 # Execution logger for detailed per-execution logs
 execution_logger = ExecutionLogger(logs_dir=settings.logs_path)
 
+# Workflow logger for n8n workflow execution logs
+workflow_logger = WorkflowLogger(logs_dir=settings.logs_path)
+
 # FastAPI application
 app = FastAPI(
     title="Claude Service",
@@ -79,6 +87,10 @@ class SummarizeRequest(BaseModel):
     """Request body for the /summarize endpoint."""
 
     articles: list[Article] = Field(..., min_length=0)
+    workflow_execution_id: str | None = Field(
+        default=None,
+        description="ID of the n8n workflow execution for log correlation",
+    )
 
 
 class SummarizeResponse(BaseModel):
@@ -90,6 +102,10 @@ class SummarizeResponse(BaseModel):
     error: str | None = None
     execution_id: str | None = None
     log_file: str | None = None
+    workflow_execution_id: str | None = Field(
+        default=None,
+        description="ID of the n8n workflow execution if provided",
+    )
 
 
 class HealthResponse(BaseModel):
@@ -97,6 +113,39 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
+
+
+# Models for /log-workflow endpoint
+class NodeExecution(BaseModel):
+    """Represents a single node execution in an n8n workflow."""
+
+    name: str
+    status: Literal["success", "error", "skipped"]
+    error: str | None = None
+
+
+class WorkflowLogRequest(BaseModel):
+    """Request body for the /log-workflow endpoint."""
+
+    workflow_execution_id: str
+    workflow_name: str
+    started_at: str  # ISO format from n8n
+    finished_at: str  # ISO format from n8n
+    status: Literal["success", "error"]
+    error_message: str | None = None
+    error_node: str | None = None
+    nodes_executed: list[NodeExecution] = Field(default_factory=list)
+    articles_count: int = 0
+    claude_execution_id: str | None = None
+    discord_sent: bool = False
+
+
+class WorkflowLogResponse(BaseModel):
+    """Response body for the /log-workflow endpoint."""
+
+    success: bool
+    log_file: str | None = None
+    error: str | None = None
 
 
 class ClaudeResult(BaseModel):
@@ -358,6 +407,7 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         input_tokens=claude_result.input_tokens if claude_result else 0,
         output_tokens=claude_result.output_tokens if claude_result else 0,
         cost_usd=claude_result.cost_usd if claude_result else 0.0,
+        workflow_execution_id=request.workflow_execution_id,
     )
 
     try:
@@ -380,7 +430,83 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         error=claude_result.error if claude_result else "Unknown error",
         execution_id=exec_log.execution_id,
         log_file=md_path.name if md_path else None,
+        workflow_execution_id=request.workflow_execution_id,
     )
+
+
+@app.post("/log-workflow", response_model=WorkflowLogResponse)
+async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
+    """Log an n8n workflow execution.
+
+    Receives workflow execution data from n8n and saves it as a structured log.
+    This enables correlation between workflow executions and Claude CLI calls.
+
+    Args:
+        request: Request containing workflow execution details.
+
+    Returns:
+        Response with success status and log file name.
+    """
+    logger.info(
+        "Logging workflow execution: %s (status: %s)",
+        request.workflow_execution_id,
+        request.status,
+    )
+
+    try:
+        # Parse ISO timestamps to datetime
+        started_at = datetime.fromisoformat(request.started_at.replace("Z", "+00:00"))
+        finished_at = datetime.fromisoformat(request.finished_at.replace("Z", "+00:00"))
+
+        # Calculate duration
+        duration_seconds = (finished_at - started_at).total_seconds()
+
+        # Convert NodeExecution to NodeExecutionLog
+        nodes = [
+            NodeExecutionLog(
+                name=node.name,
+                status=node.status,
+                error=node.error,
+            )
+            for node in request.nodes_executed
+        ]
+
+        # Create WorkflowLog from request
+        workflow_log = WorkflowLog(
+            workflow_execution_id=request.workflow_execution_id,
+            workflow_name=request.workflow_name,
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            status=request.status,
+            error_message=request.error_message,
+            error_node=request.error_node,
+            nodes_executed=nodes,
+            articles_count=request.articles_count,
+            claude_execution_id=request.claude_execution_id,
+            discord_sent=request.discord_sent,
+        )
+
+        # Save the workflow log
+        md_path, json_path = workflow_logger.save(workflow_log)
+        logger.info(
+            "Workflow log saved: %s (duration: %.2fs, nodes: %d)",
+            md_path.name,
+            duration_seconds,
+            len(nodes),
+        )
+
+        return WorkflowLogResponse(
+            success=True,
+            log_file=md_path.name,
+        )
+
+    except Exception as e:
+        logger.error("Failed to save workflow log: %s", e)
+        return WorkflowLogResponse(
+            success=False,
+            error=str(e),
+        )
 
 
 if __name__ == "__main__":
