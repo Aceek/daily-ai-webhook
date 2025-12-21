@@ -13,6 +13,10 @@ services:
       # Timezone
       - GENERIC_TIMEZONE=Europe/Paris
       - TZ=Europe/Paris
+      # Allow access to env vars in expressions
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # Discord webhook (accessible via $env.DISCORD_WEBHOOK_URL)
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
       # Persistent n8n data
       - ./n8n-data:/home/node/.n8n

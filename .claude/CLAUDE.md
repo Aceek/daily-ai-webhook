@@ -62,6 +62,7 @@ daily-ai-webhook/
 - Conventional Commits: `type(scope): description`
 - Types: `feat`, `fix`, `refactor`, `docs`, `chore`
 - Branches: `feature/`, `fix/`
+- **Pas de mention Claude Code** dans les messages de commit
 
 ## Workflow Agentique
 

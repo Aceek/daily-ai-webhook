@@ -1,0 +1,217 @@
+{
+  "name": "Daily AI News - MVP",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 8h Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://blog.google/technology/ai/rss/"
+      },
+      "id": "rss-google",
+      "name": "RSS Google AI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [250, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://openai.com/blog/rss.xml"
+      },
+      "id": "rss-openai",
+      "name": "RSS OpenAI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://huggingface.co/blog/feed.xml"
+      },
+      "id": "rss-huggingface",
+      "name": "RSS HuggingFace",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [250, 500]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-articles",
+      "name": "Merge Articles",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedup and format articles for Claude Service\nconst articles = $input.all();\nconst seen = new Set();\nconst now = new Date();\nconst cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48h ago\n\nconst unique = [];\n\nfor (const item of articles) {\n  const data = item.json;\n\n  // Extract fields (handle RSS structure variations)\n  const url = data.link || data.guid || '';\n  const title = data.title || '';\n  const pubDate = data.pubDate || data.isoDate || data.date || '';\n  const description = data.description || data.summary || data.content || data.contentSnippet || '';\n  const source = extractDomain(url);\n\n  // Dedup key: URL or normalized title\n  const dedupKey = url || normalizeTitle(title);\n\n  if (!dedupKey || seen.has(dedupKey)) continue;\n  seen.add(dedupKey);\n\n  // Filter articles older than 48h\n  if (pubDate) {\n    const articleDate = new Date(pubDate);\n    if (articleDate < cutoff) continue;\n  }\n\n  unique.push({\n    json: {\n      title: cleanText(title),\n      url: url,\n      description: cleanText(description).substring(0, 500),\n      pub_date: pubDate,\n      source: source\n    }\n  });\n\n  if (unique.length >= 20) break;\n}\n\nreturn unique;\n\n// Helper functions\nfunction normalizeTitle(title) {\n  return title.toLowerCase().replace(/[^a-z0-9]/g, '');\n}\n\nfunction cleanText(text) {\n  return text.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractDomain(url) {\n  try {\n    return new URL(url).hostname.replace('www.', '');\n  } catch {\n    return 'unknown';\n  }\n}"
+      },
+      "id": "code-dedup",
+      "name": "Dedup & Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare payload for Claude Service\nconst articles = $input.all().map(item => item.json);\n\nreturn [{\n  json: {\n    articles: articles\n  }\n}];"
+      },
+      "id": "code-payload",
+      "name": "Prepare Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://claude-service:8080/summarize",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "http-claude",
+      "name": "Call Claude Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format response for Discord\nconst response = $input.first().json;\n\nif (!response.success) {\n  // Error case - send error notification\n  return [{\n    json: {\n      content: `**AI News Bot Error**\\n\\nFailed to generate summary.\\nError: ${response.error || 'Unknown error'}\\nTime: ${new Date().toISOString()}`\n    }\n  }];\n}\n\n// Success case - send embed\nreturn [{\n  json: {\n    embeds: [{\n      title: \"Daily AI/ML News Digest\",\n      description: response.summary,\n      color: 5814783,\n      timestamp: new Date().toISOString(),\n      footer: {\n        text: `Powered by Claude | ${response.article_count} articles analyzed`\n      }\n    }]\n  }\n}];"
+      },
+      "id": "code-discord",
+      "name": "Format Discord",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DISCORD_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "http-discord",
+      "name": "Send to Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 300]
+    }
+  ],
+  "connections": {
+    "Daily 8h Trigger": {
+      "main": [
+        [
+          { "node": "RSS Google AI", "type": "main", "index": 0 },
+          { "node": "RSS OpenAI", "type": "main", "index": 0 },
+          { "node": "RSS HuggingFace", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RSS Google AI": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RSS OpenAI": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RSS HuggingFace": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Merge Articles": {
+      "main": [
+        [
+          { "node": "Dedup & Format", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Dedup & Format": {
+      "main": [
+        [
+          { "node": "Prepare Payload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Payload": {
+      "main": [
+        [
+          { "node": "Call Claude Service", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Call Claude Service": {
+      "main": [
+        [
+          { "node": "Format Discord", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Format Discord": {
+      "main": [
+        [
+          { "node": "Send to Discord", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "pinData": {}
+}
