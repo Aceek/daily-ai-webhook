@@ -19,9 +19,36 @@ services:
       # Read-only config and scripts for Claude CLI
       - ./config:/home/node/config:ro
       - ./scripts:/home/node/scripts:ro
+    depends_on:
+      claude-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  claude-service:
+    build: ./claude-service
+    container_name: ai-news-claude
+    restart: unless-stopped
+    environment:
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-sonnet}
+      - CLAUDE_TIMEOUT=${CLAUDE_TIMEOUT:-120}
+      - CLAUDE_RETRY_COUNT=${CLAUDE_RETRY_COUNT:-1}
+      - CLAUDE_LOG_LEVEL=${CLAUDE_LOG_LEVEL:-info}
+    volumes:
+      # Mount Claude config - Claude CLI needs write access for debug/session files
+      - ${CLAUDE_HOME}:/root/.claude
+      # Mount config files (read-only)
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Expose port for debugging
+    ports:
+      - "8080:8080"
