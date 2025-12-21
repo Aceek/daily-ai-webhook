@@ -272,6 +272,7 @@ async def call_claude_cli(prompt: str) -> ClaudeResult:
     cmd = [
         "claude",
         "-p", prompt,
+        "--model", settings.claude_model,
         "--allowedTools", settings.allowed_tools,
         "--output-format", "stream-json",
         "--verbose",
@@ -282,10 +283,12 @@ async def call_claude_cli(prompt: str) -> ClaudeResult:
             logger.info("Calling Claude CLI (attempt %d)", attempt + 1)
             start_time = time.time()
 
+            import os
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=os.environ.copy(),
             )
 
             stdout, stderr = await asyncio.wait_for(
@@ -295,13 +298,15 @@ async def call_claude_cli(prompt: str) -> ClaudeResult:
 
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
-                logger.error("Claude CLI error: %s", error_msg)
+                stdout_msg = stdout.decode().strip()[-2000:]  # Last 2000 chars
+                logger.error("Claude CLI error (code %d): stderr=%s, stdout=%s",
+                           process.returncode, error_msg, stdout_msg)
                 if attempt < settings.retry_count:
                     await asyncio.sleep(2)
                     continue
                 return ClaudeResult(
                     success=False,
-                    error=f"Claude CLI failed: {error_msg}",
+                    error=f"Claude CLI failed (code {process.returncode}): {error_msg or stdout_msg}",
                 )
 
             # Parse stream-json output
