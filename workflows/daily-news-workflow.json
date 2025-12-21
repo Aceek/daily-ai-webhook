@@ -19,13 +19,23 @@
     },
     {
       "parameters": {
+        "jsCode": "// Generate workflow execution ID and capture start time\nconst workflow_execution_id = `wf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\nconst started_at = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflow_execution_id,\n    started_at,\n    workflow_name: 'Daily AI News - MVP'\n  }\n}];"
+      },
+      "id": "init-execution",
+      "name": "Init Execution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [125, 300]
+    },
+    {
+      "parameters": {
         "url": "https://blog.google/technology/ai/rss/"
       },
       "id": "rss-google",
       "name": "RSS Google AI",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [250, 100]
+      "position": [300, 100]
     },
     {
       "parameters": {
@@ -35,7 +45,7 @@
       "name": "RSS OpenAI",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [250, 300]
+      "position": [300, 300]
     },
     {
       "parameters": {
@@ -45,7 +55,7 @@
       "name": "RSS HuggingFace",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [250, 500]
+      "position": [300, 500]
     },
     {
       "parameters": {
@@ -56,7 +66,7 @@
       "name": "Merge Articles",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [500, 300]
+      "position": [550, 300]
     },
     {
       "parameters": {
@@ -66,17 +76,17 @@
       "name": "Dedup & Format",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [750, 300]
+      "position": [800, 300]
     },
     {
       "parameters": {
-        "jsCode": "// Prepare payload for Claude Service\nconst articles = $input.all().map(item => item.json);\n\nreturn [{\n  json: {\n    articles: articles\n  }\n}];"
+        "jsCode": "// Prepare payload for Claude Service with workflow execution ID\nconst articles = $input.all().map(item => item.json);\nconst initData = $('Init Execution').first().json;\n\nreturn [{\n  json: {\n    articles: articles,\n    workflow_execution_id: initData.workflow_execution_id\n  }\n}];"
       },
       "id": "code-payload",
       "name": "Prepare Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1000, 300]
+      "position": [1050, 300]
     },
     {
       "parameters": {
@@ -102,7 +112,7 @@
       "name": "Call Claude Service",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1250, 300]
+      "position": [1300, 300]
     },
     {
       "parameters": {
@@ -112,7 +122,7 @@
       "name": "Format Discord",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1500, 300]
+      "position": [1550, 300]
     },
     {
       "parameters": {
@@ -136,11 +146,98 @@
       "name": "Send to Discord",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1750, 300]
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID from response if available\nconst claude_execution_id = claudeResponse.execution_id || null;\n\n// Build nodes_executed list (simplified - main nodes only)\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Discord', status: 'success', error: null },\n  { name: 'Send to Discord', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: true\n  }\n}];"
+      },
+      "id": "code-success-log",
+      "name": "Prepare Success Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://claude-service:8080/log-workflow",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-log-success",
+      "name": "Log Workflow Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2300, 300]
+    },
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare error log data for /log-workflow endpoint\n// Note: In error context, we may not have access to all previous node data\n\nconst errorData = $input.first().json;\nconst finished_at = new Date().toISOString();\n\n// Try to get init data if available (error may have occurred after Init Execution)\nlet workflow_execution_id = null;\nlet started_at = null;\nlet workflow_name = 'Daily AI News - MVP';\n\ntry {\n  const initData = $('Init Execution').first().json;\n  workflow_execution_id = initData.workflow_execution_id;\n  started_at = initData.started_at;\n  workflow_name = initData.workflow_name;\n} catch (e) {\n  // Init Execution didn't run - generate fallback ID\n  workflow_execution_id = `wf-error-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\n  started_at = finished_at; // Best approximation\n}\n\n// Extract error information from n8n error trigger data\nconst error_message = errorData.execution?.error?.message || \n                      errorData.error?.message || \n                      'Unknown error';\nconst error_node = errorData.execution?.lastNodeExecuted || \n                   errorData.workflow?.lastNodeExecuted ||\n                   'Unknown node';\n\n// Build partial nodes_executed list\nconst nodes_executed = [\n  { name: error_node, status: 'error', error: error_message }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: workflow_execution_id,\n    workflow_name: workflow_name,\n    started_at: started_at,\n    finished_at: finished_at,\n    status: 'error',\n    error_message: error_message,\n    error_node: error_node,\n    nodes_executed: nodes_executed,\n    articles_count: 0,\n    claude_execution_id: null,\n    discord_sent: false\n  }\n}];"
+      },
+      "id": "code-error-log",
+      "name": "Prepare Error Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://claude-service:8080/log-workflow",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-log-error",
+      "name": "Log Workflow Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 700]
     }
   ],
   "connections": {
     "Daily 8h Trigger": {
+      "main": [
+        [
+          { "node": "Init Execution", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Init Execution": {
       "main": [
         [
           { "node": "RSS Google AI", "type": "main", "index": 0 },
@@ -202,6 +299,34 @@
       "main": [
         [
           { "node": "Send to Discord", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send to Discord": {
+      "main": [
+        [
+          { "node": "Prepare Success Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Success Log": {
+      "main": [
+        [
+          { "node": "Log Workflow Success", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          { "node": "Prepare Error Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Error Log": {
+      "main": [
+        [
+          { "node": "Log Workflow Error", "type": "main", "index": 0 }
         ]
       ]
     }
