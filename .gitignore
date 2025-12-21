@@ -14,6 +14,9 @@ logs/*
 !logs/workflows/
 logs/workflows/*
 !logs/workflows/.gitkeep
+!logs/research/
+logs/research/*
+!logs/research/.gitkeep
 
 # n8n credentials exports
 *.credentials.json
