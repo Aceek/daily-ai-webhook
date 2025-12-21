@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "deny": [
+      ".env",
+      ".env.*",
+      "!.env.example",
+      "n8n-data/**",
+      "*.credentials.json"
+    ],
+    "allow": [
+      ".claude/**",
+      "config/**",
+      "scripts/**",
+      "bot/**",
+      "docs/**",
+      "docker-compose.yml",
+      "**/*.md",
+      "**/*.sh",
+      "**/*.py",
+      "**/*.json",
+      "**/*.yml",
+      "**/*.yaml"
+    ]
+  }
+}

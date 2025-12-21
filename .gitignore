@@ -1,0 +1,29 @@
+# Environment variables (never commit secrets)
+.env
+
+# n8n data directory (persist locally, not in repo)
+n8n-data/*
+!n8n-data/.gitkeep
+
+# n8n credentials exports
+*.credentials.json
+
+# Node.js
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+*.swp
+*.swo
