@@ -256,14 +256,14 @@
     "RSS OpenAI": {
       "main": [
         [
-          { "node": "Merge Articles", "type": "main", "index": 0 }
+          { "node": "Merge Articles", "type": "main", "index": 1 }
         ]
       ]
     },
     "RSS HuggingFace": {
       "main": [
         [
-          { "node": "Merge Articles", "type": "main", "index": 0 }
+          { "node": "Merge Articles", "type": "main", "index": 2 }
         ]
       ]
     },
