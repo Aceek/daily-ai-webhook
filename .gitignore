@@ -1,6 +1,9 @@
 # Environment variables (never commit secrets)
 .env
 
+# MCP configuration (contains tokens)
+.mcp.json
+
 # n8n data directory (persist locally, not in repo)
 n8n-data/*
 !n8n-data/.gitkeep
