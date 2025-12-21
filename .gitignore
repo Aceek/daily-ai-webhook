@@ -5,6 +5,10 @@
 n8n-data/*
 !n8n-data/.gitkeep
 
+# Execution logs (persist locally, not in repo)
+logs/*
+!logs/.gitkeep
+
 # n8n credentials exports
 *.credentials.json
 

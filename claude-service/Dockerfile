@@ -23,10 +23,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY main.py .
+COPY execution_logger.py .
 COPY config.yaml .
 
-# Create config directory (will be mounted)
-RUN mkdir -p /app/config
+# Create config and logs directories (will be mounted)
+RUN mkdir -p /app/config /app/logs
 
 # Expose port
 EXPOSE 8080

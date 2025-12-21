@@ -8,11 +8,14 @@ This service wraps Claude Code CLI to expose it as an HTTP API.
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
+
+from execution_logger import ExecutionLogger, create_execution_log
 
 
 class Settings(BaseSettings):
@@ -27,6 +30,7 @@ class Settings(BaseSettings):
     retry_count: int = 1
     rules_path: str = "/app/config/rules.md"
     editorial_guide_path: str = "/app/config/editorial-guide.md"
+    logs_path: str = "/app/logs"
     log_level: str = "info"
 
     class Config:
@@ -43,6 +47,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("claude-service")
+
+# Execution logger for detailed per-execution logs
+execution_logger = ExecutionLogger(logs_dir=settings.logs_path)
 
 # FastAPI application
 app = FastAPI(
@@ -76,6 +83,8 @@ class SummarizeResponse(BaseModel):
     article_count: int
     success: bool
     error: str | None = None
+    execution_id: str | None = None
+    log_file: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -227,25 +236,55 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     """
     logger.info("Received %d articles to summarize", len(request.articles))
 
+    start_time = time.time()
+    prompt = ""
+    summary = ""
+    success = False
+    error_msg: str | None = None
+
     try:
         prompt = build_prompt(request.articles)
         summary = await call_claude_cli(prompt)
-
+        success = True
         logger.info("Summary generated successfully")
-        return SummarizeResponse(
-            summary=summary,
-            article_count=len(request.articles),
-            success=True,
-        )
 
     except Exception as e:
+        error_msg = str(e)
         logger.error("Error generating summary: %s", e)
-        return SummarizeResponse(
-            summary="",
-            article_count=len(request.articles),
-            success=False,
-            error=str(e),
+
+    # Calculate duration
+    duration = time.time() - start_time
+
+    # Create and save execution log
+    exec_log = create_execution_log(
+        articles=list(request.articles),
+        prompt=prompt,
+        response=summary,
+        duration=duration,
+        success=success,
+        error=error_msg,
+    )
+
+    try:
+        md_path, json_path = execution_logger.save(exec_log)
+        logger.info(
+            "Execution log saved: %s (id: %s, duration: %.2fs)",
+            md_path.name,
+            exec_log.execution_id,
+            duration,
         )
+    except Exception as log_error:
+        logger.error("Failed to save execution log: %s", log_error)
+        md_path = None
+
+    return SummarizeResponse(
+        summary=summary,
+        article_count=len(request.articles),
+        success=success,
+        error=error_msg,
+        execution_id=exec_log.execution_id,
+        log_file=md_path.name if md_path else None,
+    )
 
 
 if __name__ == "__main__":

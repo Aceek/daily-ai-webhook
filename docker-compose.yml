@@ -47,6 +47,8 @@ services:
       - ${CLAUDE_HOME}:/root/.claude
       # Mount config files (read-only)
       - ./config:/app/config:ro
+      # Execution logs (one file per workflow execution)
+      - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
