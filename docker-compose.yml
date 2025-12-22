@@ -49,6 +49,8 @@ services:
       - ./claude-config/docs:/app/claude-config/docs:ro
       - ./claude-config/.credentials.json:/app/claude-config/.credentials.json:ro
       - ./claude-config/.mcp.json:/app/claude-config/.mcp.json:ro
+      # MCP config directly in /app for Claude CLI discovery (project scope)
+      - ./claude-config/.mcp.json:/app/.mcp.json:ro
       # MCP server code (mounted read-only)
       - ./mcp-server:/app/mcp-server:ro
       # Execution logs (includes research/ and digests/ subdirectories)
