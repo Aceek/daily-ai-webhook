@@ -361,6 +361,7 @@ class ExecutionLogger:
     def save(
         self,
         execution_log: ExecutionLog,
+        exec_dir: ExecutionDirectory | None = None,
         digest: dict | None = None,
         workflow_log: WorkflowLog | None = None,
     ) -> ExecutionDirectory:
@@ -368,17 +369,19 @@ class ExecutionLogger:
 
         Args:
             execution_log: The main execution log data
+            exec_dir: Optional existing execution directory (reused if provided)
             digest: Optional digest data from MCP
             workflow_log: Optional workflow log from n8n
 
         Returns:
             The ExecutionDirectory containing all saved files
         """
-        # Create or get execution directory
-        exec_dir = self.create_execution_dir(
-            execution_id=execution_log.execution_id,
-            timestamp=execution_log.timestamp,
-        )
+        # Reuse existing directory or create new one
+        if exec_dir is None:
+            exec_dir = self.create_execution_dir(
+                execution_id=execution_log.execution_id,
+                timestamp=execution_log.timestamp,
+            )
 
         # Save timeline to raw/
         if execution_log.timeline:

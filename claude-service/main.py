@@ -520,9 +520,9 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         execution_id=execution_id,
     )
 
-    # Save all logs to the execution directory
+    # Save all logs to the execution directory (reuse existing exec_dir)
     try:
-        execution_logger.save(exec_log, digest=digest)
+        execution_logger.save(exec_log, exec_dir=exec_dir, digest=digest)
         logger.info(
             "Execution logs saved to: %s (id: %s, duration: %.2fs)",
             exec_dir.path,
