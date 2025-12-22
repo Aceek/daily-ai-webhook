@@ -43,8 +43,14 @@ services:
       - CLAUDE_RETRY_COUNT=${CLAUDE_RETRY_COUNT:-1}
       - CLAUDE_LOG_LEVEL=${CLAUDE_LOG_LEVEL:-info}
     volumes:
-      # Claude config dedicated to this project (agents, instructions, docs)
-      - ./claude-config:/root/.claude
+      # Named volume for Claude CLI runtime data (statsig, todos, projects, etc.)
+      # Keeps runtime files in Docker, not synced to host
+      - claude-runtime:/root/.claude
+      # Our config files mounted read-only (copied to /root/.claude by entrypoint)
+      - ./claude-config/CLAUDE.md:/app/claude-config/CLAUDE.md:ro
+      - ./claude-config/agents:/app/claude-config/agents:ro
+      - ./claude-config/docs:/app/claude-config/docs:ro
+      - ./claude-config/.credentials.json:/app/claude-config/.credentials.json:ro
       # Execution logs (includes research/ subdirectory)
       - ./logs:/app/logs
     healthcheck:
@@ -56,3 +62,7 @@ services:
     # Expose port for debugging
     ports:
       - "8080:8080"
+
+volumes:
+  claude-runtime:
+    name: ai-news-claude-runtime
