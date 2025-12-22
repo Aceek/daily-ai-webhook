@@ -32,8 +32,8 @@ RUN chmod +x /entrypoint.sh
 # Create logs directories (will be mounted)
 RUN mkdir -p /app/logs /app/logs/research /app/logs/digests
 
-# Create mcp-server directory (will be mounted)
-RUN mkdir -p /app/mcp-server
+# Create mcp directory (will be mounted)
+RUN mkdir -p /app/mcp
 
 # Expose port
 EXPOSE 8080

@@ -6,10 +6,10 @@ set -e
 umask 002
 
 # Copy our config files to Claude CLI home directory
-# Source: /app/claude-config/ (mounted read-only from host)
+# Source: /app/config/ (mounted read-only from host)
 # Destination: /root/.claude/ (named volume for runtime)
 copy_config() {
-    local src="/app/claude-config"
+    local src="/app/config"
     local dest="/root/.claude"
 
     echo "[entrypoint] Copying config files to $dest..."

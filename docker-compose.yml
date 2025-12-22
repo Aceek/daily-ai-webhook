@@ -41,22 +41,16 @@ services:
       - CLAUDE_LOG_LEVEL=${CLAUDE_LOG_LEVEL:-info}
     volumes:
       # Named volume for Claude CLI runtime data (statsig, todos, projects, etc.)
-      # Keeps runtime files in Docker, not synced to host
       - claude-runtime:/root/.claude
-      # Our config files mounted read-only (copied to /root/.claude by entrypoint)
-      - ./claude-config/CLAUDE.md:/app/claude-config/CLAUDE.md:ro
-      - ./claude-config/agents:/app/claude-config/agents:ro
-      - ./claude-config/.credentials.json:/app/claude-config/.credentials.json:ro
-      - ./claude-config/.mcp.json:/app/claude-config/.mcp.json:ro
-      # MCP config directly in /app for Claude CLI discovery (project scope)
-      - ./claude-config/.mcp.json:/app/.mcp.json:ro
-      # MCP server code (mounted read-only)
-      - ./mcp-server:/app/mcp-server:ro
-      # Missions configuration (read-only)
-      - ./missions:/app/missions:ro
-      # Data interchange directory (articles.json written by main.py, read by Claude)
+      # Config files (copied to /root/.claude by entrypoint)
+      - ./claude-service/config:/app/config:ro
+      # MCP server code
+      - ./claude-service/mcp:/app/mcp:ro
+      # Missions configuration
+      - ./claude-service/missions:/app/missions:ro
+      # Data interchange (articles.json)
       - ./data:/app/data
-      # Execution logs (includes research/ and digests/ subdirectories)
+      # Execution logs
       - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

@@ -13,33 +13,38 @@ Système automatisé de veille AI/ML : collecte, analyse et publication Discord.
 | Orchestration | n8n (Docker) |
 | Intelligence | Claude Code CLI (agentic mode) |
 | Messaging | Discord Webhook → Bot (Phase 2) |
-| Config | Markdown (`claude-config/`) |
+| Config | Markdown (`claude-service/config/`) |
 
 ## Architecture
 
 ```
 daily-ai-webhook/
-├── docker-compose.yml        # n8n + claude-service containers
-├── claude-service/           # HTTP wrapper pour Claude CLI
-│   ├── main.py               # FastAPI avec /summarize endpoint
-│   ├── execution_logger.py   # Système de logs détaillés
-│   ├── entrypoint.sh         # Setup permissions et copie config
-│   └── Dockerfile
-├── claude-config/            # Config Claude CLI (monté read-only)
-│   ├── CLAUDE.md             # Instructions agent principal
-│   ├── .credentials.json     # Auth Anthropic (gitignored)
-│   ├── agents/               # Sub-agents (fact-checker, topic-diver)
-│   └── docs/                 # Schémas et guides éditoriaux
-├── logs/                     # Logs d'exécution (gitignored)
-│   ├── research/             # Documents de recherche générés
-│   └── workflows/            # Logs workflow n8n
-├── workflows/                # Exports n8n (backup)
-└── bot/                      # Discord bot (Phase 2, Python)
+├── docker-compose.yml          # n8n + claude-service containers
+├── claude-service/             # Tout le code/config du container Claude
+│   ├── Dockerfile
+│   ├── main.py                 # FastAPI avec /summarize endpoint
+│   ├── execution_logger.py     # Système de logs détaillés
+│   ├── entrypoint.sh           # Setup permissions et copie config
+│   ├── config/                 # Config Claude CLI (monté read-only)
+│   │   ├── CLAUDE.md           # Instructions agent principal
+│   │   ├── .credentials.json   # Auth Anthropic (gitignored)
+│   │   ├── .mcp.json           # Configuration MCP
+│   │   └── agents/             # Sub-agents (fact-checker, topic-diver)
+│   ├── mcp/                    # Serveur MCP submit_digest
+│   │   └── server.py
+│   └── missions/               # Définitions des missions
+│       ├── _common/            # Règles partagées
+│       └── ai-news/            # Mission AI/ML news
+├── data/                       # Interchange articles.json (runtime)
+├── logs/                       # Logs d'exécution (gitignored)
+├── n8n-data/                   # Données n8n (gitignored)
+├── workflows/                  # Exports n8n (backup)
+└── bot/                        # Discord bot (Phase 2, Python)
 ```
 
 **Séparation des contextes:**
 - `.claude/` = Développement (Claude Code local)
-- `claude-config/` = Production (Claude CLI dans Docker)
+- `claude-service/` = Production (tout le container Claude)
 
 ## Standards
 
@@ -60,7 +65,7 @@ daily-ai-webhook/
 - async/await pour discord.py
 - Logging structuré (pas de print)
 
-### Markdown (claude-config/)
+### Markdown (claude-service/config/, missions/)
 - Structure cohérente entre fichiers
 - Sections clairement délimitées
 - Exemples concrets inclus
