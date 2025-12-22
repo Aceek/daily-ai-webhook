@@ -11,9 +11,9 @@ Système automatisé de veille AI/ML : collecte, analyse et publication Discord.
 | Composant | Tech |
 |-----------|------|
 | Orchestration | n8n (Docker) |
-| Intelligence | Claude Code CLI |
+| Intelligence | Claude Code CLI (agentic mode) |
 | Messaging | Discord Webhook → Bot (Phase 2) |
-| Config | Markdown (`config/`) |
+| Config | Markdown (`claude-config/`) |
 
 ## Architecture
 
@@ -23,20 +23,23 @@ daily-ai-webhook/
 ├── claude-service/           # HTTP wrapper pour Claude CLI
 │   ├── main.py               # FastAPI avec /summarize endpoint
 │   ├── execution_logger.py   # Système de logs détaillés
-│   ├── Dockerfile
-│   └── config.yaml
-├── config/                   # PRODUCTION: règles éditoriales
-│   ├── rules.md
-│   ├── sources.md
-│   └── editorial-guide.md
-├── logs/                     # Logs d'exécution (1 fichier/run, gitignored)
+│   ├── entrypoint.sh         # Setup permissions et copie config
+│   └── Dockerfile
+├── claude-config/            # Config Claude CLI (monté read-only)
+│   ├── CLAUDE.md             # Instructions agent principal
+│   ├── .credentials.json     # Auth Anthropic (gitignored)
+│   ├── agents/               # Sub-agents (fact-checker, topic-diver)
+│   └── docs/                 # Schémas et guides éditoriaux
+├── logs/                     # Logs d'exécution (gitignored)
+│   ├── research/             # Documents de recherche générés
+│   └── workflows/            # Logs workflow n8n
 ├── workflows/                # Exports n8n (backup)
 └── bot/                      # Discord bot (Phase 2, Python)
 ```
 
 **Séparation des contextes:**
-- `.claude/` = Développement (toi + agents)
-- `config/` = Production (n8n → Claude CLI automatisé)
+- `.claude/` = Développement (Claude Code local)
+- `claude-config/` = Production (Claude CLI dans Docker)
 
 ## Standards
 
@@ -57,7 +60,7 @@ daily-ai-webhook/
 - async/await pour discord.py
 - Logging structuré (pas de print)
 
-### Markdown (config/)
+### Markdown (claude-config/)
 - Structure cohérente entre fichiers
 - Sections clairement délimitées
 - Exemples concrets inclus

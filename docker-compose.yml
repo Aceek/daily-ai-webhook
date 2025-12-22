@@ -20,9 +20,6 @@ services:
     volumes:
       # Persistent n8n data
       - ./n8n-data:/home/node/.n8n
-      # Read-only config and scripts for Claude CLI
-      - ./config:/home/node/config:ro
-      - ./scripts:/home/node/scripts:ro
     depends_on:
       claude-service:
         condition: service_healthy

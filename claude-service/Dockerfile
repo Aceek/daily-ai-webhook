@@ -24,14 +24,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY main.py .
 COPY execution_logger.py .
-COPY config.yaml .
 
 # Copy and setup entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create config and logs directories (will be mounted)
-RUN mkdir -p /app/config /app/logs /app/logs/research
+# Create logs directories (will be mounted)
+RUN mkdir -p /app/logs /app/logs/research
 
 # Expose port
 EXPOSE 8080
