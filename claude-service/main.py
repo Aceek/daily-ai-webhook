@@ -48,8 +48,11 @@ class Settings(BaseSettings):
     output_schema_path: str = "/root/.claude/docs/output-schema.md"
     research_template_path: str = "/root/.claude/docs/research-template.md"
 
-    # Allowed tools for agentic workflow
-    allowed_tools: str = "WebSearch,WebFetch,Write,Task"
+    # Digests directory (where MCP server writes the structured output)
+    digests_path: str = "/app/logs/digests"
+
+    # Allowed tools for agentic workflow (mcp__submit-digest__submit_digest is auto-added via MCP)
+    allowed_tools: str = "WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest"
 
     class Config:
         """Pydantic settings configuration."""
@@ -104,7 +107,7 @@ class SummarizeRequest(BaseModel):
 class SummarizeResponse(BaseModel):
     """Response body for the /summarize endpoint."""
 
-    summary: str
+    summary: str  # Kept for backwards compatibility, contains stringified digest
     article_count: int
     success: bool
     error: str | None = None
@@ -113,6 +116,11 @@ class SummarizeResponse(BaseModel):
     workflow_execution_id: str | None = Field(
         default=None,
         description="ID of the n8n workflow execution if provided",
+    )
+    # New: structured digest from MCP server
+    digest: dict | None = Field(
+        default=None,
+        description="Structured digest submitted via MCP submit_digest tool",
     )
 
 
@@ -396,6 +404,37 @@ def parse_stream_output(output: str, start_time: float) -> ClaudeResult:
     )
 
 
+def read_digest_file(execution_id: str) -> dict | None:
+    """Read the digest JSON file created by the MCP submit_digest tool.
+
+    Args:
+        execution_id: The execution ID used when calling submit_digest.
+
+    Returns:
+        Parsed digest dict if file exists, None otherwise.
+    """
+    import json
+    from pathlib import Path
+
+    digest_path = Path(settings.digests_path) / f"{execution_id}.json"
+
+    if not digest_path.exists():
+        logger.warning("Digest file not found: %s", digest_path)
+        return None
+
+    try:
+        with open(digest_path, encoding="utf-8") as f:
+            digest = json.load(f)
+        logger.info("Read digest from %s", digest_path)
+        return digest
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse digest file %s: %s", digest_path, e)
+        return None
+    except Exception as e:
+        logger.error("Failed to read digest file %s: %s", digest_path, e)
+        return None
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Health check endpoint.
@@ -476,14 +515,32 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         logger.error("Failed to save execution log: %s", log_error)
         md_path = None
 
+    # Read the digest file created by MCP submit_digest tool
+    digest = read_digest_file(execution_id)
+
+    # Determine success: we need both Claude CLI success AND a valid digest
+    final_success = (claude_result.success if claude_result else False) and digest is not None
+    final_error = None
+
+    if not final_success:
+        if claude_result and not claude_result.success:
+            final_error = claude_result.error
+        elif digest is None:
+            final_error = "Claude did not call submit_digest tool - no digest file found"
+
+    # For summary field: use stringified digest for backwards compatibility
+    import json as json_module
+    summary_text = json_module.dumps(digest, ensure_ascii=False) if digest else ""
+
     return SummarizeResponse(
-        summary=claude_result.response if claude_result else "",
+        summary=summary_text,
         article_count=len(request.articles),
-        success=claude_result.success if claude_result else False,
-        error=claude_result.error if claude_result else "Unknown error",
+        success=final_success,
+        error=final_error,
         execution_id=exec_log.execution_id,
         log_file=md_path.name if md_path else None,
         workflow_execution_id=request.workflow_execution_id,
+        digest=digest,
     )
 
 

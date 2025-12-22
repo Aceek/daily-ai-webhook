@@ -1,5 +1,10 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pyyaml==6.0.2
-pydantic==2.10.3
-pydantic-settings==2.7.0
+# Web framework and server
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+
+# Data validation (compatible with mcp)
+pydantic>=2.11.0
+pydantic-settings>=2.5.2
+
+# Other
+pyyaml>=6.0.2

@@ -48,7 +48,10 @@ services:
       - ./claude-config/agents:/app/claude-config/agents:ro
       - ./claude-config/docs:/app/claude-config/docs:ro
       - ./claude-config/.credentials.json:/app/claude-config/.credentials.json:ro
-      # Execution logs (includes research/ subdirectory)
+      - ./claude-config/.mcp.json:/app/claude-config/.mcp.json:ro
+      # MCP server code (mounted read-only)
+      - ./mcp-server:/app/mcp-server:ro
+      # Execution logs (includes research/ and digests/ subdirectories)
       - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

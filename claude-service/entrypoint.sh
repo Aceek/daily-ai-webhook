@@ -43,6 +43,12 @@ copy_config() {
         echo "  - docs/"
     fi
 
+    # Copy MCP config to home directory (not inside .claude)
+    if [ -f "$src/.mcp.json" ]; then
+        cp "$src/.mcp.json" "/root/.mcp.json"
+        echo "  - .mcp.json -> /root/.mcp.json"
+    fi
+
     echo "[entrypoint] Config copy complete."
 }
 
@@ -64,6 +70,10 @@ fix_permissions "/root/.claude"
 
 echo "[entrypoint] Fixing permissions on /app/logs..."
 fix_permissions "/app/logs"
+
+# Ensure digests directory exists
+mkdir -p /app/logs/digests
+echo "[entrypoint] Ensured /app/logs/digests exists"
 
 echo "[entrypoint] Starting uvicorn with umask 002..."
 exec "$@"

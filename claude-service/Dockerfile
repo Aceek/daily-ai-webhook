@@ -17,9 +17,9 @@ RUN npm install -g @anthropic-ai/claude-code
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
+# Copy requirements and install Python dependencies (including MCP)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt "mcp>=0.5.0"
 
 # Copy application code
 COPY main.py .
@@ -30,7 +30,10 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Create logs directories (will be mounted)
-RUN mkdir -p /app/logs /app/logs/research
+RUN mkdir -p /app/logs /app/logs/research /app/logs/digests
+
+# Create mcp-server directory (will be mounted)
+RUN mkdir -p /app/mcp-server
 
 # Expose port
 EXPOSE 8080
