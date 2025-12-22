@@ -1,5 +1,5 @@
 {
-  "name": "Daily AI News - MVP",
+  "name": "Daily AI News - v2 (Enriched Sources)",
   "nodes": [
     {
       "parameters": {
@@ -15,17 +15,39 @@
       "name": "Daily 8h Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [0, 300]
+      "position": [0, 400]
     },
     {
       "parameters": {
-        "jsCode": "// Generate workflow execution ID and capture start time\nconst workflow_execution_id = `wf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\nconst started_at = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflow_execution_id,\n    started_at,\n    workflow_name: 'Daily AI News - MVP'\n  }\n}];"
+        "jsCode": "// Generate workflow execution ID and capture start time\nconst workflow_execution_id = `wf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\nconst started_at = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflow_execution_id,\n    started_at,\n    workflow_name: 'Daily AI News - v2'\n  }\n}];"
       },
       "id": "init-execution",
       "name": "Init Execution",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [125, 300]
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/category/artificial-intelligence/feed/"
+      },
+      "id": "rss-techcrunch",
+      "name": "RSS TechCrunch AI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [400, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://openai.com/news/rss.xml"
+      },
+      "id": "rss-openai",
+      "name": "RSS OpenAI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [400, 150],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -35,17 +57,8 @@
       "name": "RSS Google AI",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [300, 100]
-    },
-    {
-      "parameters": {
-        "url": "https://openai.com/blog/rss.xml"
-      },
-      "id": "rss-openai",
-      "name": "RSS OpenAI",
-      "type": "n8n-nodes-base.rssFeedRead",
-      "typeVersion": 1.1,
-      "position": [300, 300]
+      "position": [400, 300],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -55,39 +68,140 @@
       "name": "RSS HuggingFace",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [300, 500]
+      "position": [400, 450],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.technologyreview.com/feed/"
+      },
+      "id": "rss-mittech",
+      "name": "RSS MIT Tech Review",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [400, 600],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://hn.algolia.com/api/v1/search_by_date",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "AI OR LLM OR GPT OR Claude OR \"machine learning\""
+            },
+            {
+              "name": "tags",
+              "value": "story"
+            },
+            {
+              "name": "numericFilters",
+              "value": "points>50,created_at_i>{{ Math.floor((Date.now() - 24*60*60*1000) / 1000) }}"
+            },
+            {
+              "name": "hitsPerPage",
+              "value": "25"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-hackernews",
+      "name": "HTTP Hacker News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 750],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform Hacker News API response to Article format\nconst response = $input.first().json;\nconst hits = response.hits || [];\n\nreturn hits.map(hit => ({\n  json: {\n    title: hit.title || '',\n    link: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,\n    guid: hit.objectID,\n    pubDate: hit.created_at,\n    description: `${hit.title} (${hit.points} points, ${hit.num_comments} comments)`,\n    source: 'Hacker News'\n  }\n}));"
+      },
+      "id": "code-transform-hn",
+      "name": "Transform HN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 750]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/MachineLearning/hot.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "25"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "AI-News-Bot/2.0 (n8n workflow)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-reddit",
+      "name": "HTTP Reddit ML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 900],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform Reddit API response to Article format\n// Filter for posts with score > 100\nconst response = $input.first().json;\nconst posts = response.data?.children || [];\n\nreturn posts\n  .filter(post => post.data.score > 100)\n  .map(post => ({\n    json: {\n      title: post.data.title || '',\n      link: `https://reddit.com${post.data.permalink}`,\n      guid: post.data.id,\n      pubDate: new Date(post.data.created_utc * 1000).toISOString(),\n      description: (post.data.selftext || post.data.title).substring(0, 500),\n      source: 'Reddit r/MachineLearning'\n    }\n  }));"
+      },
+      "id": "code-transform-reddit",
+      "name": "Transform Reddit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 900]
     },
     {
       "parameters": {
         "mode": "append",
-        "numberInputs": 3,
+        "numberInputs": 7,
         "options": {}
       },
       "id": "merge-articles",
       "name": "Merge Articles",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [550, 300]
+      "position": [850, 400]
     },
     {
       "parameters": {
-        "jsCode": "// Dedup and format articles for Claude Service\nconst articles = $input.all();\nconst seen = new Set();\nconst now = new Date();\nconst cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago\n\nconst unique = [];\n\nfor (const item of articles) {\n  const data = item.json;\n\n  // Extract fields (handle RSS structure variations)\n  const url = data.link || data.guid || '';\n  const title = data.title || '';\n  const pubDate = data.pubDate || data.isoDate || data.date || '';\n  const description = data.description || data.summary || data.content || data.contentSnippet || '';\n  const source = extractDomain(url);\n\n  // Dedup key: URL or normalized title\n  const dedupKey = url || normalizeTitle(title);\n\n  if (!dedupKey || seen.has(dedupKey)) continue;\n  seen.add(dedupKey);\n\n  // Filter articles older than 7 days\n  if (pubDate) {\n    const articleDate = new Date(pubDate);\n    if (articleDate < cutoff) continue;\n  }\n\n  unique.push({\n    json: {\n      title: cleanText(title),\n      url: url,\n      description: cleanText(description).substring(0, 500),\n      pub_date: pubDate,\n      source: source\n    }\n  });\n\n  if (unique.length >= 20) break;\n}\n\nreturn unique;\n\n// Helper functions\nfunction normalizeTitle(title) {\n  return title.toLowerCase().replace(/[^a-z0-9]/g, '');\n}\n\nfunction cleanText(text) {\n  return text.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractDomain(url) {\n  try {\n    return new URL(url).hostname.replace('www.', '');\n  } catch {\n    return 'unknown';\n  }\n}"
+        "jsCode": "// Dedup and format articles for Claude Service\nconst articles = $input.all();\nconst seen = new Set();\nconst now = new Date();\nconst cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago\n\nconst unique = [];\n\nfor (const item of articles) {\n  const data = item.json;\n\n  // Extract fields (handle RSS and API structure variations)\n  const url = data.link || data.guid || data.url || '';\n  const title = data.title || '';\n  const pubDate = data.pubDate || data.isoDate || data.date || data.created_at || '';\n  const description = data.description || data.summary || data.content || data.contentSnippet || '';\n  const source = data.source || extractDomain(url);\n\n  // Dedup key: URL or normalized title\n  const dedupKey = url || normalizeTitle(title);\n\n  if (!dedupKey || seen.has(dedupKey)) continue;\n  seen.add(dedupKey);\n\n  // Filter articles older than 7 days\n  if (pubDate) {\n    const articleDate = new Date(pubDate);\n    if (articleDate < cutoff) continue;\n  }\n\n  unique.push({\n    json: {\n      title: cleanText(title),\n      url: url,\n      description: cleanText(description).substring(0, 500),\n      pub_date: pubDate,\n      source: source\n    }\n  });\n\n  if (unique.length >= 30) break; // Increased limit for more sources\n}\n\nconsole.log(`Dedup: ${articles.length} articles -> ${unique.length} unique`);\nreturn unique;\n\n// Helper functions\nfunction normalizeTitle(title) {\n  return title.toLowerCase().replace(/[^a-z0-9]/g, '');\n}\n\nfunction cleanText(text) {\n  return text.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractDomain(url) {\n  try {\n    return new URL(url).hostname.replace('www.', '');\n  } catch {\n    return 'unknown';\n  }\n}"
       },
       "id": "code-dedup",
       "name": "Dedup & Format",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [800, 300]
+      "position": [1100, 400]
     },
     {
       "parameters": {
-        "jsCode": "// Prepare payload for Claude Service with workflow execution ID\nconst articles = $input.all().map(item => item.json);\nconst initData = $('Init Execution').first().json;\n\nreturn [{\n  json: {\n    articles: articles,\n    workflow_execution_id: initData.workflow_execution_id\n  }\n}];"
+        "jsCode": "// Prepare payload for Claude Service with workflow execution ID\nconst articles = $input.all().map(item => item.json);\nconst initData = $('Init Execution').first().json;\n\nconsole.log(`Sending ${articles.length} articles to Claude Service`);\n\nreturn [{\n  json: {\n    articles: articles,\n    workflow_execution_id: initData.workflow_execution_id\n  }\n}];"
       },
       "id": "code-payload",
       "name": "Prepare Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1050, 300]
+      "position": [1350, 400]
     },
     {
       "parameters": {
@@ -106,14 +220,14 @@
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
         "options": {
-          "timeout": 180000
+          "timeout": 660000
         }
       },
       "id": "http-claude",
       "name": "Call Claude Service",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, 300]
+      "position": [1600, 400]
     },
     {
       "parameters": {
@@ -123,7 +237,7 @@
       "name": "Format Discord",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1550, 300]
+      "position": [1850, 400]
     },
     {
       "parameters": {
@@ -147,17 +261,17 @@
       "name": "Send to Discord",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1800, 300]
+      "position": [2100, 400]
     },
     {
       "parameters": {
-        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID from response if available\nconst claude_execution_id = claudeResponse.execution_id || null;\n\n// Build nodes_executed list (simplified - main nodes only)\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Discord', status: 'success', error: null },\n  { name: 'Send to Discord', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: true\n  }\n}];"
+        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID from response if available\nconst claude_execution_id = claudeResponse.execution_id || null;\n\n// Build nodes_executed list\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS TechCrunch AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'RSS MIT Tech Review', status: 'success', error: null },\n  { name: 'HTTP Hacker News', status: 'success', error: null },\n  { name: 'HTTP Reddit ML', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Discord', status: 'success', error: null },\n  { name: 'Send to Discord', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: true\n  }\n}];"
       },
       "id": "code-success-log",
       "name": "Prepare Success Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2050, 300]
+      "position": [2350, 400]
     },
     {
       "parameters": {
@@ -183,7 +297,7 @@
       "name": "Log Workflow Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2300, 300]
+      "position": [2600, 400]
     },
     {
       "parameters": {},
@@ -191,17 +305,17 @@
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [0, 700]
+      "position": [0, 800]
     },
     {
       "parameters": {
-        "jsCode": "// Prepare error log data for /log-workflow endpoint\n// Note: In error context, we may not have access to all previous node data\n\nconst errorData = $input.first().json;\nconst finished_at = new Date().toISOString();\n\n// Try to get init data if available (error may have occurred after Init Execution)\nlet workflow_execution_id = null;\nlet started_at = null;\nlet workflow_name = 'Daily AI News - MVP';\n\ntry {\n  const initData = $('Init Execution').first().json;\n  workflow_execution_id = initData.workflow_execution_id;\n  started_at = initData.started_at;\n  workflow_name = initData.workflow_name;\n} catch (e) {\n  // Init Execution didn't run - generate fallback ID\n  workflow_execution_id = `wf-error-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\n  started_at = finished_at; // Best approximation\n}\n\n// Extract error information from n8n error trigger data\nconst error_message = errorData.execution?.error?.message || \n                      errorData.error?.message || \n                      'Unknown error';\nconst error_node = errorData.execution?.lastNodeExecuted || \n                   errorData.workflow?.lastNodeExecuted ||\n                   'Unknown node';\n\n// Build partial nodes_executed list\nconst nodes_executed = [\n  { name: error_node, status: 'error', error: error_message }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: workflow_execution_id,\n    workflow_name: workflow_name,\n    started_at: started_at,\n    finished_at: finished_at,\n    status: 'error',\n    error_message: error_message,\n    error_node: error_node,\n    nodes_executed: nodes_executed,\n    articles_count: 0,\n    claude_execution_id: null,\n    discord_sent: false\n  }\n}];"
+        "jsCode": "// Prepare error log data for /log-workflow endpoint\nconst errorData = $input.first().json;\nconst finished_at = new Date().toISOString();\n\nlet workflow_execution_id = null;\nlet started_at = null;\nlet workflow_name = 'Daily AI News - v2';\n\ntry {\n  const initData = $('Init Execution').first().json;\n  workflow_execution_id = initData.workflow_execution_id;\n  started_at = initData.started_at;\n  workflow_name = initData.workflow_name;\n} catch (e) {\n  workflow_execution_id = `wf-error-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\n  started_at = finished_at;\n}\n\nconst error_message = errorData.execution?.error?.message || \n                      errorData.error?.message || \n                      'Unknown error';\nconst error_node = errorData.execution?.lastNodeExecuted || \n                   errorData.workflow?.lastNodeExecuted ||\n                   'Unknown node';\n\nconst nodes_executed = [\n  { name: error_node, status: 'error', error: error_message }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: workflow_execution_id,\n    workflow_name: workflow_name,\n    started_at: started_at,\n    finished_at: finished_at,\n    status: 'error',\n    error_message: error_message,\n    error_node: error_node,\n    nodes_executed: nodes_executed,\n    articles_count: 0,\n    claude_execution_id: null,\n    discord_sent: false\n  }\n}];"
       },
       "id": "code-error-log",
       "name": "Prepare Error Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [250, 700]
+      "position": [250, 800]
     },
     {
       "parameters": {
@@ -227,7 +341,7 @@
       "name": "Log Workflow Error",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [500, 700]
+      "position": [500, 800]
     }
   ],
   "connections": {
@@ -241,13 +355,17 @@
     "Init Execution": {
       "main": [
         [
-          { "node": "RSS Google AI", "type": "main", "index": 0 },
+          { "node": "RSS TechCrunch AI", "type": "main", "index": 0 },
           { "node": "RSS OpenAI", "type": "main", "index": 0 },
-          { "node": "RSS HuggingFace", "type": "main", "index": 0 }
+          { "node": "RSS Google AI", "type": "main", "index": 0 },
+          { "node": "RSS HuggingFace", "type": "main", "index": 0 },
+          { "node": "RSS MIT Tech Review", "type": "main", "index": 0 },
+          { "node": "HTTP Hacker News", "type": "main", "index": 0 },
+          { "node": "HTTP Reddit ML", "type": "main", "index": 0 }
         ]
       ]
     },
-    "RSS Google AI": {
+    "RSS TechCrunch AI": {
       "main": [
         [
           { "node": "Merge Articles", "type": "main", "index": 0 }
@@ -261,10 +379,52 @@
         ]
       ]
     },
-    "RSS HuggingFace": {
+    "RSS Google AI": {
       "main": [
         [
           { "node": "Merge Articles", "type": "main", "index": 2 }
+        ]
+      ]
+    },
+    "RSS HuggingFace": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 3 }
+        ]
+      ]
+    },
+    "RSS MIT Tech Review": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 4 }
+        ]
+      ]
+    },
+    "HTTP Hacker News": {
+      "main": [
+        [
+          { "node": "Transform HN", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Transform HN": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 5 }
+        ]
+      ]
+    },
+    "HTTP Reddit ML": {
+      "main": [
+        [
+          { "node": "Transform Reddit", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Transform Reddit": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 6 }
         ]
       ]
     },
