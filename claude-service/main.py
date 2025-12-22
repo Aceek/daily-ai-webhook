@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 from execution_logger import (
+    ExecutionDirectory,
     ExecutionLogger,
     NodeExecutionLog,
     StreamEvent,
@@ -192,7 +193,12 @@ def load_file(path: str) -> str:
         return ""
 
 
-def build_prompt(articles: list[Article], execution_id: str, workflow_execution_id: str | None = None) -> str:
+def build_prompt(
+    articles: list[Article],
+    execution_id: str,
+    exec_dir: ExecutionDirectory,
+    workflow_execution_id: str | None = None,
+) -> str:
     """Build the enriched prompt for agentic Claude CLI.
 
     Constructs a complete prompt including agent instructions,
@@ -202,6 +208,7 @@ def build_prompt(articles: list[Article], execution_id: str, workflow_execution_
     Args:
         articles: List of articles to include in the prompt.
         execution_id: Unique execution ID for this run.
+        exec_dir: The execution directory for this run.
         workflow_execution_id: Optional n8n workflow execution ID.
 
     Returns:
@@ -225,9 +232,8 @@ def build_prompt(articles: list[Article], execution_id: str, workflow_execution_
         ]
     )
 
-    # Generate research document path
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    research_path = f"/app/logs/research/{timestamp}_{execution_id}_research.md"
+    # Use the execution directory for research document
+    research_path = str(exec_dir.research_path)
 
     return f"""{instructions}
 
@@ -264,7 +270,7 @@ IMPORTANT:
 """
 
 
-async def call_claude_cli(prompt: str) -> ClaudeResult:
+async def call_claude_cli(prompt: str, exec_dir: ExecutionDirectory) -> ClaudeResult:
     """Call Claude Code CLI with agentic capabilities.
 
     Executes claude CLI as a subprocess with retry logic
@@ -273,6 +279,7 @@ async def call_claude_cli(prompt: str) -> ClaudeResult:
 
     Args:
         prompt: The prompt to send to Claude CLI.
+        exec_dir: The execution directory for this run.
 
     Returns:
         ClaudeResult with response, timeline, and metrics.
@@ -292,11 +299,15 @@ async def call_claude_cli(prompt: str) -> ClaudeResult:
             start_time = time.time()
 
             import os
+            env = os.environ.copy()
+            # Pass execution directory to MCP server via environment variable
+            env["EXECUTION_DIR"] = str(exec_dir.path)
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=os.environ.copy(),
+                env=env,
             )
 
             stdout, stderr = await asyncio.wait_for(
@@ -404,19 +415,18 @@ def parse_stream_output(output: str, start_time: float) -> ClaudeResult:
     )
 
 
-def read_digest_file(execution_id: str) -> dict | None:
+def read_digest_file(exec_dir: ExecutionDirectory) -> dict | None:
     """Read the digest JSON file created by the MCP submit_digest tool.
 
     Args:
-        execution_id: The execution ID used when calling submit_digest.
+        exec_dir: The execution directory containing the digest file.
 
     Returns:
         Parsed digest dict if file exists, None otherwise.
     """
     import json
-    from pathlib import Path
 
-    digest_path = Path(settings.digests_path) / f"{execution_id}.json"
+    digest_path = exec_dir.digest_path
 
     if not digest_path.exists():
         logger.warning("Digest file not found: %s", digest_path)
@@ -459,8 +469,12 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
 
     logger.info("Received %d articles to summarize", len(request.articles))
 
-    # Generate execution ID early so it can be passed to build_prompt
+    # Generate execution ID early
     execution_id = uuid.uuid4().hex[:12]
+
+    # Create execution directory immediately (new folder structure)
+    exec_dir = execution_logger.create_execution_dir(execution_id)
+    logger.info("Created execution directory: %s", exec_dir.path)
 
     start_time = time.time()
     prompt = ""
@@ -470,9 +484,10 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         prompt = build_prompt(
             articles=request.articles,
             execution_id=execution_id,
+            exec_dir=exec_dir,
             workflow_execution_id=request.workflow_execution_id,
         )
-        claude_result = await call_claude_cli(prompt)
+        claude_result = await call_claude_cli(prompt, exec_dir)
 
         if claude_result.success:
             logger.info("Summary generated successfully")
@@ -486,7 +501,10 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     # Calculate duration
     duration = time.time() - start_time
 
-    # Create and save execution log with full timeline
+    # Read the digest file created by MCP submit_digest tool
+    digest = read_digest_file(exec_dir)
+
+    # Create execution log
     exec_log = create_execution_log(
         articles=list(request.articles),
         prompt=prompt,
@@ -502,21 +520,17 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         execution_id=execution_id,
     )
 
+    # Save all logs to the execution directory
     try:
-        md_path, json_path = execution_logger.save(exec_log)
+        execution_logger.save(exec_log, digest=digest)
         logger.info(
-            "Execution log saved: %s (id: %s, duration: %.2fs, events: %d)",
-            md_path.name,
+            "Execution logs saved to: %s (id: %s, duration: %.2fs)",
+            exec_dir.path,
             exec_log.execution_id,
             duration,
-            len(exec_log.timeline),
         )
     except Exception as log_error:
         logger.error("Failed to save execution log: %s", log_error)
-        md_path = None
-
-    # Read the digest file created by MCP submit_digest tool
-    digest = read_digest_file(execution_id)
 
     # Determine success: we need both Claude CLI success AND a valid digest
     final_success = (claude_result.success if claude_result else False) and digest is not None
@@ -538,7 +552,7 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         success=final_success,
         error=final_error,
         execution_id=exec_log.execution_id,
-        log_file=md_path.name if md_path else None,
+        log_file=str(exec_dir.path),
         workflow_execution_id=request.workflow_execution_id,
         digest=digest,
     )
@@ -558,9 +572,10 @@ async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
         Response with success status and log file name.
     """
     logger.info(
-        "Logging workflow execution: %s (status: %s)",
+        "Logging workflow execution: %s (status: %s, claude_id: %s)",
         request.workflow_execution_id,
         request.status,
+        request.claude_execution_id,
     )
 
     try:
@@ -597,18 +612,18 @@ async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
             discord_sent=request.discord_sent,
         )
 
-        # Save the workflow log
-        md_path, json_path = workflow_logger.save(workflow_log)
+        # Save the workflow log (will find matching execution directory if available)
+        log_path = workflow_logger.save(workflow_log)
         logger.info(
             "Workflow log saved: %s (duration: %.2fs, nodes: %d)",
-            md_path.name,
+            log_path,
             duration_seconds,
             len(nodes),
         )
 
         return WorkflowLogResponse(
             success=True,
-            log_file=md_path.name,
+            log_file=str(log_path),
         )
 
     except Exception as e:

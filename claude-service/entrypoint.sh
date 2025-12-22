@@ -71,9 +71,9 @@ fix_permissions "/root/.claude"
 echo "[entrypoint] Fixing permissions on /app/logs..."
 fix_permissions "/app/logs"
 
-# Ensure digests directory exists
-mkdir -p /app/logs/digests
-echo "[entrypoint] Ensured /app/logs/digests exists"
+# Ensure logs directory exists (subdirectories created dynamically per execution)
+mkdir -p /app/logs
+echo "[entrypoint] Ensured /app/logs exists"
 
 echo "[entrypoint] Starting uvicorn with umask 002..."
 exec "$@"

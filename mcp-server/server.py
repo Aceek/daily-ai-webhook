@@ -6,7 +6,7 @@ This server exposes the `submit_digest` tool that Claude uses to submit
 structured news digests instead of returning free-form text.
 
 The digest is validated against the schema and written to a JSON file
-that FastAPI reads to return to n8n.
+in the execution directory that FastAPI reads to return to n8n.
 """
 
 import json
@@ -19,8 +19,13 @@ from mcp.server.fastmcp import FastMCP
 # Initialize MCP server
 mcp = FastMCP("submit-digest")
 
-# Output directory for digests (mounted volume in Docker)
-DIGESTS_DIR = Path(os.getenv("DIGESTS_DIR", "/app/logs/digests"))
+# Output directory: prefer EXECUTION_DIR (new structure), fallback to DIGESTS_DIR (legacy)
+def get_output_dir() -> Path:
+    """Get the output directory for the digest file."""
+    exec_dir = os.getenv("EXECUTION_DIR")
+    if exec_dir:
+        return Path(exec_dir)
+    return Path(os.getenv("DIGESTS_DIR", "/app/logs/digests"))
 
 
 @mcp.tool()
@@ -112,11 +117,16 @@ def submit_digest(
         "submitted_at": datetime.now().isoformat(),
     }
 
-    # Ensure output directory exists
-    DIGESTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Get output directory and ensure it exists
+    output_dir = get_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write to file
-    output_file = DIGESTS_DIR / f"{execution_id}.json"
+    # Write to file: digest.json in new structure, {id}.json in legacy
+    if os.getenv("EXECUTION_DIR"):
+        output_file = output_dir / "digest.json"
+    else:
+        output_file = output_dir / f"{execution_id}.json"
+
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(digest, f, indent=2, ensure_ascii=False)
 
