@@ -1,8 +1,8 @@
-# Output Schema
+# Output Schema - AI News
 
-Le JSON de sortie finale doit suivre exactement ce format.
+Le JSON soumis via `submit_digest` doit respecter ce schéma.
 
-## Structure
+## Structure complète
 
 ```json
 {
@@ -61,62 +61,62 @@ Le JSON de sortie finale doit suivre exactement ce format.
     "web_searches": 4,
     "fact_checks": 1,
     "deep_dives": 1,
-    "research_doc": "/app/logs/research/2024-12-22_08-00-00_abc123_research.md",
+    "research_doc": "/path/to/research.md",
     "total_news_included": 6,
     "total_news_excluded": 4
   }
 }
 ```
 
-## Champs Requis
+## Champs requis par news item
 
-### Pour chaque news item
-
-| Champ | Type | Description |
+| Champ | Type | Contraintes |
 |-------|------|-------------|
-| `title` | string | Titre court et factuel (max 100 chars) |
-| `summary` | string | 2-3 phrases factuelles (max 300 chars) |
-| `url` | string | URL de la source primaire |
-| `source` | string | Nom lisible de la source |
+| `title` | string | Max 100 chars, factuel |
+| `summary` | string | Max 300 chars, 2-3 phrases |
+| `url` | string | URL valide, source primaire |
+| `source` | string | Nom lisible |
 | `category` | string | `headlines`, `research`, `industry`, ou `watching` |
-| `confidence` | string | `high` ou `medium` (jamais `low` en production) |
-| `deep_dive` | object/null | Résultat du topic-diver si applicable |
+| `confidence` | string | `high` ou `medium` uniquement |
+| `deep_dive` | object/null | Résultat topic-diver si applicable |
 
-### Catégories
+## Catégories
 
-| Catégorie | Contenu |
-|-----------|---------|
-| `headlines` | News majeures du jour (annonces labs, régulation, acquisitions) |
+| Catégorie | Contenu attendu |
+|-----------|-----------------|
+| `headlines` | News majeures (annonces labs, régulation, acquisitions) |
 | `research` | Papers, benchmarks, avancées techniques |
 | `industry` | Produits, business, levées de fonds |
 | `watching` | Tendances émergentes, choses à surveiller |
 
-### Confidence Levels
+## Confidence levels
 
-| Niveau | Signification |
-|--------|---------------|
-| `high` | Source officielle ou fact-checkée |
-| `medium` | Source réputée mais non vérifiée directement |
+| Niveau | Signification | Quand l'utiliser |
+|--------|---------------|------------------|
+| `high` | Source officielle ou fact-checkée | Blogs officiels, papers, sources vérifiées |
+| `medium` | Source réputée non vérifiée directement | TechCrunch, Reddit populaire, etc. |
 
-**Note:** Les news avec `confidence: low` ne doivent PAS apparaître dans le digest final.
+**Note:** Les news `confidence: low` ne doivent PAS apparaître dans le digest.
 
-## Deep Dive Format
+## Deep Dive format
 
-Si un topic-diver a été utilisé, le champ `deep_dive` contient:
+Si un topic-diver a été utilisé :
 
 ```json
 {
   "background": "Contexte historique",
-  "key_reactions": [...],
-  "implications": [...],
+  "key_reactions": [
+    {"source": "Twitter", "summary": "Réaction notable"}
+  ],
+  "implications": ["Implication 1", "Implication 2"],
   "what_matters": "Résumé de l'importance"
 }
 ```
 
-## Règles de Validation
+## Règles de validation
 
 1. Au moins 1 item dans `headlines`
 2. `metadata.research_doc` doit pointer vers un fichier existant
 3. Tous les URLs doivent être valides
 4. Pas de doublons (même URL ou titre très similaire)
-5. Total des items recommandé: 4-8
+5. Total items recommandé: 4-8

@@ -42,23 +42,24 @@ class Settings(BaseSettings):
     logs_path: str = "/app/logs"
     log_level: str = "info"
 
-    # Claude config paths (mounted from claude-config/)
-    claude_instructions_path: str = "/root/.claude/CLAUDE.md"
-    selection_rules_path: str = "/root/.claude/docs/selection-rules.md"
-    editorial_guide_path: str = "/root/.claude/docs/editorial-guide.md"
-    output_schema_path: str = "/root/.claude/docs/output-schema.md"
-    research_template_path: str = "/root/.claude/docs/research-template.md"
+    # Multi-mission architecture paths
+    missions_path: str = "/app/missions"
+    data_path: str = "/app/data"
 
     # Digests directory (where MCP server writes the structured output)
     digests_path: str = "/app/logs/digests"
 
-    # Allowed tools for agentic workflow (mcp__submit-digest__submit_digest is auto-added via MCP)
-    allowed_tools: str = "WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest"
+    # Allowed tools for agentic workflow (Read added for multi-mission architecture)
+    allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest"
 
     class Config:
         """Pydantic settings configuration."""
 
         env_prefix = "CLAUDE_"
+
+
+# Valid missions (extensible)
+VALID_MISSIONS = ["ai-news"]
 
 
 settings = Settings()
@@ -99,6 +100,10 @@ class SummarizeRequest(BaseModel):
     """Request body for the /summarize endpoint."""
 
     articles: list[Article] = Field(..., min_length=0)
+    mission: str = Field(
+        default="ai-news",
+        description="Mission to execute (e.g., 'ai-news', 'video-games')",
+    )
     workflow_execution_id: str | None = Field(
         default=None,
         description="ID of the n8n workflow execution for log correlation",
@@ -114,6 +119,10 @@ class SummarizeResponse(BaseModel):
     error: str | None = None
     execution_id: str | None = None
     log_file: str | None = None
+    mission: str = Field(
+        default="ai-news",
+        description="Mission that was executed",
+    )
     workflow_execution_id: str | None = Field(
         default=None,
         description="ID of the n8n workflow execution if provided",
@@ -177,96 +186,89 @@ class ClaudeResult(BaseModel):
     error: str | None = None
 
 
-def load_file(path: str) -> str:
-    """Load content from a file.
+def validate_mission(mission: str) -> tuple[bool, str | None]:
+    """Validate that mission exists and has required files.
 
     Args:
-        path: Path to the file to load.
+        mission: Name of the mission to validate.
 
     Returns:
-        File content as string, or empty string if file not found.
+        Tuple of (is_valid, error_message).
     """
-    try:
-        return Path(path).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        logger.warning("File not found: %s", path)
-        return ""
+    if mission not in VALID_MISSIONS:
+        return False, f"Unknown mission: {mission}. Valid missions: {VALID_MISSIONS}"
+
+    mission_path = Path(settings.missions_path) / mission
+    required_files = ["mission.md", "selection-rules.md", "editorial-guide.md", "output-schema.md"]
+
+    for f in required_files:
+        if not (mission_path / f).exists():
+            return False, f"Missing mission file: {mission_path / f}"
+
+    return True, None
+
+
+def write_articles_file(articles: list[Article], path: Path) -> None:
+    """Write articles to JSON file for Claude to read.
+
+    Args:
+        articles: List of articles to write.
+        path: Path to write the JSON file.
+    """
+    import json
+
+    data = [
+        {
+            "title": a.title,
+            "url": a.url,
+            "description": a.description[:500] if a.description else "",
+            "pub_date": a.pub_date,
+            "source": a.source,
+        }
+        for a in articles
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    logger.info("Wrote %d articles to %s", len(articles), path)
 
 
 def build_prompt(
-    articles: list[Article],
+    mission: str,
+    articles_path: str,
     execution_id: str,
-    exec_dir: ExecutionDirectory,
+    research_path: str,
     workflow_execution_id: str | None = None,
 ) -> str:
-    """Build the enriched prompt for agentic Claude CLI.
+    """Build minimal prompt for multi-mission architecture.
 
-    Constructs a complete prompt including agent instructions,
-    selection rules, editorial guidelines, output schema,
-    and the articles to analyze.
+    Claude will read mission files itself based on CLAUDE.md instructions.
 
     Args:
-        articles: List of articles to include in the prompt.
+        mission: Name of the mission to execute.
+        articles_path: Path to the articles JSON file.
         execution_id: Unique execution ID for this run.
-        exec_dir: The execution directory for this run.
+        research_path: Path where Claude should write the research document.
         workflow_execution_id: Optional n8n workflow execution ID.
 
     Returns:
-        Complete prompt string for Claude CLI.
+        Minimal prompt string for Claude CLI.
     """
-    # Load all configuration files
-    instructions = load_file(settings.claude_instructions_path)
-    selection_rules = load_file(settings.selection_rules_path)
-    editorial_guide = load_file(settings.editorial_guide_path)
-    output_schema = load_file(settings.output_schema_path)
+    return f"""=== EXECUTION PARAMETERS ===
 
-    # Format articles
-    articles_text = "\n---\n".join(
-        [
-            f"[{i + 1}] {a.title}\n"
-            f"Source: {a.source}\n"
-            f"URL: {a.url}\n"
-            f"Date: {a.pub_date}\n"
-            f"Description: {a.description[:500] if a.description else 'N/A'}"
-            for i, a in enumerate(articles)
-        ]
-    )
+mission: {mission}
+articles_path: {articles_path}
+execution_id: {execution_id}
+research_path: {research_path}
+workflow_id: {workflow_execution_id or "standalone"}
+date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
-    # Use the execution directory for research document
-    research_path = str(exec_dir.research_path)
+=== INSTRUCTIONS ===
 
-    return f"""{instructions}
+Suis le protocole de démarrage de ton CLAUDE.md.
+Lis les fichiers de mission dans l'ordre indiqué avant de commencer ton analyse.
 
-=== SELECTION RULES ===
-{selection_rules}
-
-=== EDITORIAL GUIDELINES ===
-{editorial_guide}
-
-=== OUTPUT SCHEMA ===
-{output_schema}
-
-=== ARTICLES TO ANALYZE ({len(articles)} articles) ===
-{articles_text if articles else "No articles provided by primary sources today."}
-
-=== EXECUTION PARAMETERS ===
-- Execution ID: {execution_id}
-- Workflow ID: {workflow_execution_id or "standalone"}
-- Research Document Path: {research_path}
-- Date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
-
-=== FINAL INSTRUCTIONS ===
-
-1. Analyze all articles above following the selection rules
-2. Perform 3-5 web searches to complement/validate (MANDATORY)
-3. Use sub-agents if necessary (fact-checker for dubious sources, topic-diver for major announcements)
-4. Write the research document to: {research_path}
-5. Return the final JSON according to the output schema
-
-IMPORTANT:
-- The research document MUST be written BEFORE your final response
-- Your final response must be ONLY the structured JSON
-- If no significant news today, still produce a valid JSON with empty arrays and a note in metadata
+Remplace {{mission}} par: {mission}
 """
 
 
@@ -459,15 +461,33 @@ async def health_check() -> HealthResponse:
 async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     """Generate a news summary from articles using Claude CLI.
 
+    Uses multi-mission architecture: Claude reads mission files itself.
+
     Args:
-        request: Request containing articles to summarize.
+        request: Request containing articles and mission to execute.
 
     Returns:
         Summary response with success status and generated content.
     """
     import uuid
 
-    logger.info("Received %d articles to summarize", len(request.articles))
+    logger.info(
+        "Received %d articles for mission '%s'",
+        len(request.articles),
+        request.mission,
+    )
+
+    # Validate mission before proceeding
+    valid, error = validate_mission(request.mission)
+    if not valid:
+        logger.error("Invalid mission: %s", error)
+        return SummarizeResponse(
+            summary="",
+            article_count=len(request.articles),
+            success=False,
+            error=error,
+            mission=request.mission,
+        )
 
     # Generate execution ID early
     execution_id = uuid.uuid4().hex[:12]
@@ -476,21 +496,26 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     exec_dir = execution_logger.create_execution_dir(execution_id)
     logger.info("Created execution directory: %s", exec_dir.path)
 
+    # Write articles to file for Claude to read
+    articles_path = Path(settings.data_path) / "articles.json"
+    write_articles_file(request.articles, articles_path)
+
     start_time = time.time()
     prompt = ""
     claude_result: ClaudeResult | None = None
 
     try:
         prompt = build_prompt(
-            articles=request.articles,
+            mission=request.mission,
+            articles_path=str(articles_path),
             execution_id=execution_id,
-            exec_dir=exec_dir,
+            research_path=str(exec_dir.research_path),
             workflow_execution_id=request.workflow_execution_id,
         )
         claude_result = await call_claude_cli(prompt, exec_dir)
 
         if claude_result.success:
-            logger.info("Summary generated successfully")
+            logger.info("Summary generated successfully for mission '%s'", request.mission)
         else:
             logger.error("Claude CLI failed: %s", claude_result.error)
 
@@ -518,15 +543,17 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         cost_usd=claude_result.cost_usd if claude_result else 0.0,
         workflow_execution_id=request.workflow_execution_id,
         execution_id=execution_id,
+        mission=request.mission,
     )
 
     # Save all logs to the execution directory (reuse existing exec_dir)
     try:
         execution_logger.save(exec_log, exec_dir=exec_dir, digest=digest)
         logger.info(
-            "Execution logs saved to: %s (id: %s, duration: %.2fs)",
+            "Execution logs saved to: %s (id: %s, mission: %s, duration: %.2fs)",
             exec_dir.path,
             exec_log.execution_id,
+            request.mission,
             duration,
         )
     except Exception as log_error:
@@ -553,6 +580,7 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         error=final_error,
         execution_id=exec_log.execution_id,
         log_file=str(exec_dir.path),
+        mission=request.mission,
         workflow_execution_id=request.workflow_execution_id,
         digest=digest,
     )

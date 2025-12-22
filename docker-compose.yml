@@ -46,13 +46,16 @@ services:
       # Our config files mounted read-only (copied to /root/.claude by entrypoint)
       - ./claude-config/CLAUDE.md:/app/claude-config/CLAUDE.md:ro
       - ./claude-config/agents:/app/claude-config/agents:ro
-      - ./claude-config/docs:/app/claude-config/docs:ro
       - ./claude-config/.credentials.json:/app/claude-config/.credentials.json:ro
       - ./claude-config/.mcp.json:/app/claude-config/.mcp.json:ro
       # MCP config directly in /app for Claude CLI discovery (project scope)
       - ./claude-config/.mcp.json:/app/.mcp.json:ro
       # MCP server code (mounted read-only)
       - ./mcp-server:/app/mcp-server:ro
+      # Missions configuration (read-only)
+      - ./missions:/app/missions:ro
+      # Data interchange directory (articles.json written by main.py, read by Claude)
+      - ./data:/app/data
       # Execution logs (includes research/ and digests/ subdirectories)
       - ./logs:/app/logs
     healthcheck:

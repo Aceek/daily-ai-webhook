@@ -13,6 +13,7 @@ Utilise ce template pour créer le document de recherche.
 |-------|-------|
 | **Execution ID** | {execution_id} |
 | **Workflow ID** | {workflow_execution_id} |
+| **Mission** | {mission} |
 | **Date** | {date} |
 
 ## Phase 1: Sources Primaires Analysées

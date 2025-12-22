@@ -83,6 +83,7 @@ class ExecutionLog(BaseModel):
 
     execution_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     timestamp: datetime = Field(default_factory=datetime.now)
+    mission: str = "ai-news"  # Multi-mission support
     success: bool = False
     error: str | None = None
     workflow_execution_id: str | None = None
@@ -238,6 +239,7 @@ class ExecutionDirectory:
 
         md = f"""# Execution {log.execution_id}
 
+**Mission:** {log.mission}
 **Status:** {status_emoji} {status}
 **Date:** {log.timestamp.strftime("%Y-%m-%d %H:%M")}
 **Duration:** {duration_str} | **Cost:** {cost_str}
@@ -587,6 +589,7 @@ def create_execution_log(
     cost_usd: float = 0.0,
     workflow_execution_id: str | None = None,
     execution_id: str | None = None,
+    mission: str = "ai-news",
 ) -> ExecutionLog:
     """Factory function to create an ExecutionLog from raw data."""
     article_logs = [
@@ -619,6 +622,7 @@ def create_execution_log(
         "claude_response": response,
         "timeline": timeline or [],
         "metrics": metrics,
+        "mission": mission,
     }
     if execution_id:
         log_kwargs["execution_id"] = execution_id

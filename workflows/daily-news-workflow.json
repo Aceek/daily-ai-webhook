@@ -195,7 +195,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare payload for Claude Service with workflow execution ID\nconst articles = $input.all().map(item => item.json);\nconst initData = $('Init Execution').first().json;\n\nconsole.log(`Sending ${articles.length} articles to Claude Service`);\n\nreturn [{\n  json: {\n    articles: articles,\n    workflow_execution_id: initData.workflow_execution_id\n  }\n}];"
+        "jsCode": "// Prepare payload for Claude Service with mission and workflow execution ID\nconst articles = $input.all().map(item => item.json);\nconst initData = $('Init Execution').first().json;\n\nconsole.log(`Sending ${articles.length} articles to Claude Service (mission: ai-news)`);\n\nreturn [{\n  json: {\n    articles: articles,\n    mission: \"ai-news\",\n    workflow_execution_id: initData.workflow_execution_id\n  }\n}];"
       },
       "id": "code-payload",
       "name": "Prepare Payload",

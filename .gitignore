@@ -1,6 +1,9 @@
 # Environment variables (never commit secrets)
 .env
 
+# Data interchange directory (temporary files for Claude)
+data/
+
 # MCP configuration (contains tokens)
 .mcp.json
 
