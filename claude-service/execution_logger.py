@@ -76,6 +76,13 @@ class WorkflowLog(BaseModel):
     articles_count: int = 0
     claude_execution_id: str | None = None
     discord_sent: bool = False
+    # Discord publication details
+    discord_message_id: str | None = None
+    discord_channel_id: str | None = None
+    # Database storage details
+    digest_id: int | None = None
+    db_saved: bool = False
+    articles_saved: int = 0
 
 
 class ExecutionLog(BaseModel):
@@ -216,6 +223,26 @@ class ExecutionDirectory:
         claude_status = "✅" if log.success else "❌"
         discord_status = "✅" if workflow and workflow.discord_sent else "❌"
 
+        # Database status
+        if workflow and workflow.db_saved:
+            db_status = "✅"
+            db_details = f"digest_id={workflow.digest_id}, {workflow.articles_saved} articles"
+        elif digest and digest.get("digest_id"):
+            db_status = "✅"
+            db_details = f"digest_id={digest.get('digest_id')}"
+        else:
+            db_status = "❌"
+            db_details = "Not saved"
+
+        # Discord details
+        if workflow and workflow.discord_sent:
+            if workflow.discord_message_id:
+                discord_details = f"msg={workflow.discord_message_id}"
+            else:
+                discord_details = "Sent"
+        else:
+            discord_details = "Not sent"
+
         # Digest stats
         headlines_count = len(digest.get("headlines", [])) if digest else 0
         research_count = len(digest.get("research", [])) if digest else 0
@@ -264,6 +291,13 @@ class ExecutionDirectory:
 ## Top Stories
 
 {top_headlines}
+## Storage
+
+| Target | Status | Details |
+|--------|--------|---------|
+| Database | {db_status} | {db_details} |
+| Discord | {discord_status} | {discord_details} |
+
 ## Files
 
 - [digest.json](./digest.json) - Final output
@@ -467,6 +501,14 @@ class WorkflowLogger:
             nodes_lines.append(f"| {node.name} | {s} |")
         nodes_table = "\n".join(nodes_lines)
 
+        # Database status
+        db_status = "✅ Saved" if log.db_saved else "❌ Not saved"
+        db_details = f"digest_id={log.digest_id}" if log.digest_id else ""
+
+        # Discord status
+        discord_status = "✅ Sent" if log.discord_sent else "❌ Not sent"
+        discord_details = f"msg={log.discord_message_id}" if log.discord_message_id else ""
+
         md = f"""# Workflow Log
 
 **Status:** {status_emoji} {log.status.upper()}
@@ -474,7 +516,13 @@ class WorkflowLogger:
 **Claude ID:** `{log.claude_execution_id or 'N/A'}`
 **Duration:** {duration_str}
 **Articles:** {log.articles_count}
-**Discord:** {"✅ Sent" if log.discord_sent else "❌ Not sent"}
+
+## Storage
+
+| Target | Status | Details |
+|--------|--------|---------|
+| Database | {db_status} | {db_details} |
+| Discord | {discord_status} | {discord_details} |
 
 ## Nodes
 

@@ -43,10 +43,16 @@ copy_config() {
         echo "  - docs/"
     fi
 
-    # Copy MCP config to home directory (not inside .claude)
+    # Generate MCP config with DATABASE_URL from environment
     if [ -f "$src/.mcp.json" ]; then
-        cp "$src/.mcp.json" "/root/.mcp.json"
-        echo "  - .mcp.json -> /root/.mcp.json"
+        # Replace ${DATABASE_URL} placeholder with actual value
+        if [ -n "$DATABASE_URL" ]; then
+            sed "s|\${DATABASE_URL}|$DATABASE_URL|g" "$src/.mcp.json" > "/root/.mcp.json"
+            echo "  - .mcp.json -> /root/.mcp.json (with DATABASE_URL)"
+        else
+            cp "$src/.mcp.json" "/root/.mcp.json"
+            echo "  - .mcp.json -> /root/.mcp.json (no DATABASE_URL)"
+        fi
     fi
 
     echo "[entrypoint] Config copy complete."
