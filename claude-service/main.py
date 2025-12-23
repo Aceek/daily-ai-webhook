@@ -596,11 +596,20 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     except Exception as log_error:
         logger.error("Failed to save execution log: %s", log_error)
 
-    # Determine success: we need both Claude CLI success AND a valid digest
+    # Determine success: we need Claude CLI success AND a valid digest AND DB persistence
     final_success = (claude_result.success if claude_result else False) and digest is not None
     final_error = None
 
-    if not final_success:
+    # Extract digest_id from digest (added by MCP submit_digest)
+    digest_db_id = digest.get("digest_id") if digest else None
+
+    # Validate that digest was persisted to database
+    if final_success and digest_db_id is None:
+        final_success = False
+        final_error = "Digest created but not saved to database - MCP submit_digest failed or unavailable"
+        logger.error("Digest validation failed: no digest_id in digest.json (MCP issue)")
+
+    if not final_success and final_error is None:
         if claude_result and not claude_result.success:
             final_error = claude_result.error
         elif digest is None:
@@ -609,9 +618,6 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     # For summary field: use stringified digest for backwards compatibility
     import json as json_module
     summary_text = json_module.dumps(digest, ensure_ascii=False) if digest else ""
-
-    # Extract digest_id from digest (added by MCP submit_digest)
-    digest_db_id = digest.get("digest_id") if digest else None
 
     return SummarizeResponse(
         summary=summary_text,
