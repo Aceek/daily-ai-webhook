@@ -5,8 +5,8 @@ SQLModel models for persistent storage of articles, categories, and digests.
 Supports multi-mission architecture with mission-scoped data.
 """
 
-from datetime import date, datetime
-from typing import Any
+from datetime import date as DateType, datetime
+from typing import Any, Optional
 
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import JSON
@@ -65,8 +65,8 @@ class Article(SQLModel, table=True):
 
     # Relationships
     mission: Mission = Relationship(back_populates="articles")
-    category: Category | None = Relationship(back_populates="articles")
-    daily_digest: "DailyDigest | None" = Relationship(back_populates="articles")
+    category: Optional["Category"] = Relationship(back_populates="articles")
+    daily_digest: Optional["DailyDigest"] = Relationship(back_populates="articles")
 
 
 class DailyDigest(SQLModel, table=True):
@@ -77,7 +77,7 @@ class DailyDigest(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     mission_id: str = Field(foreign_key="missions.id", max_length=50, index=True)
-    date: date = Field(index=True)
+    date: DateType = Field(index=True)
     content: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     generated_at: datetime = Field(default_factory=datetime.utcnow)
     posted_to_discord: bool = Field(default=False)
@@ -94,12 +94,13 @@ class WeeklyDigest(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     mission_id: str = Field(foreign_key="missions.id", max_length=50, index=True)
-    week_start: date = Field(index=True)
-    week_end: date
+    week_start: DateType = Field(index=True)
+    week_end: DateType
     params: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     content: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     generated_at: datetime = Field(default_factory=datetime.utcnow)
     is_standard: bool = Field(default=True)
+    posted_to_discord: bool = Field(default=False)
 
     # Relationships
     mission: Mission = Relationship(back_populates="weekly_digests")

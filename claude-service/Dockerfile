@@ -24,6 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt "mcp>=0.5.0"
 # Copy application code
 COPY main.py .
 COPY execution_logger.py .
+COPY database.py .
+COPY models.py .
 
 # Copy and setup entrypoint script
 COPY entrypoint.sh /entrypoint.sh

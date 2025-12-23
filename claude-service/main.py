@@ -16,7 +16,7 @@ from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from database import close_db, init_db, seed_missions
 
@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     with the CLAUDE_ prefix.
     """
 
+    model_config = SettingsConfigDict(env_prefix="CLAUDE_")
+
     claude_model: str = "sonnet"
     claude_timeout: int = 600  # Increased for agentic workflow
     retry_count: int = 1
@@ -56,15 +58,8 @@ class Settings(BaseSettings):
     # MCP tools: submit_digest, submit_weekly_digest, get_categories, get_articles, get_article_stats
     allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest,mcp__submit-digest__submit_weekly_digest,mcp__submit-digest__get_categories,mcp__submit-digest__get_articles,mcp__submit-digest__get_article_stats"
 
-    # Database connection (no CLAUDE_ prefix for DATABASE_URL)
-    database_url: str | None = None
-
-    class Config:
-        """Pydantic settings configuration."""
-
-        env_prefix = "CLAUDE_"
-        # Allow DATABASE_URL without prefix
-        fields = {"database_url": {"env": "DATABASE_URL"}}
+    # Database connection (uses DATABASE_URL without prefix)
+    database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
 
 
 # Valid missions (extensible)
