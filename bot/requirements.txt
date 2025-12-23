@@ -3,3 +3,7 @@ discord.py>=2.4.0
 
 # Database
 asyncpg>=0.30.0
+
+# HTTP API
+fastapi>=0.115.0
+uvicorn>=0.32.0

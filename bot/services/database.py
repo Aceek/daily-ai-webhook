@@ -173,3 +173,19 @@ async def mark_daily_digest_posted(digest_id: int) -> None:
             "UPDATE daily_digests SET posted_to_discord = true WHERE id = $1",
             digest_id,
         )
+
+
+async def mark_weekly_digest_posted(digest_id: int) -> None:
+    """Mark a weekly digest as posted to Discord.
+
+    Args:
+        digest_id: The digest ID to update
+    """
+    if not _pool:
+        return
+
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE weekly_digests SET posted_to_discord = true WHERE id = $1",
+            digest_id,
+        )

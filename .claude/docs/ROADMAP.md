@@ -50,13 +50,15 @@
 ### 3.1 Structure bot/ ✅
 ```
 bot/
-├── main.py          # Entry point, bot setup
+├── main.py              # Entry point (discord.py + FastAPI)
+├── api.py               # HTTP API endpoints
+├── config.py            # Settings
 ├── cogs/
-│   ├── daily.py     # /daily command
-│   └── weekly.py    # /weekly command
+│   ├── daily.py         # /daily command
+│   └── weekly.py        # /weekly command
 ├── services/
-│   └── database.py  # DB queries (asyncpg)
-├── config.py        # Settings
+│   ├── database.py      # DB queries (asyncpg)
+│   └── publisher.py     # Digest publication logic
 ├── Dockerfile
 └── requirements.txt
 ```
@@ -92,12 +94,25 @@ bot/
 - [x] submit_digest sauvegarde en DB avec ON CONFLICT
 - [x] Champs: mission_id, date, content JSON, generated_at
 
-### 4.3 Publication via Bot
-- [ ] n8n appelle bot endpoint pour publier (optionnel)
-- [ ] Bot poste dans chan #daily-news
-- [ ] Update posted_to_discord = true
+### 4.3 Publication via Bot ✅
+- [x] Bot HTTP API (FastAPI + uvicorn alongside discord.py)
+- [x] Endpoints: POST /publish, POST /callback, GET /health
+- [x] Publisher service with embed building logic
+- [x] n8n workflow updated to POST to `http://discord-bot:8000/publish`
+- [x] Update posted_to_discord = true after successful publication
+- [x] Docker healthcheck on bot API
 
-**Note:** La publication continue via webhook Discord existant. Le bot permet les queries à la demande.
+**Commit:** `feat(bot): add HTTP API for digest publication`
+
+**Architecture:**
+```
+n8n ────────────────┐
+                    │  POST http://discord-bot:8000/publish
+                    ▼
+claude-service ───► discord-bot:8000 ───► Discord API
+                         │
+                         └─► UPDATE posted_to_discord = true
+```
 
 ---
 
@@ -125,12 +140,14 @@ bot/
 
 ---
 
-## Phase 6: Callback System 🔲
+## Phase 6: Callback System 🔶
 
-### 6.1 Bot callback endpoint
-- [ ] FastAPI mini dans bot (ou aiohttp)
-- [ ] POST /callback route
-- [ ] Correlation ID tracking (dict in-memory)
+### 6.1 Bot callback endpoint ✅
+- [x] FastAPI intégré dans bot (avec discord.py)
+- [x] POST /callback route
+- [x] Correlation ID tracking (dict in-memory)
+
+**Note:** Endpoint prêt via Phase 4.3, reste à intégrer avec n8n.
 
 ### 6.2 Intégration n8n
 - [ ] Workflow envoie callback en fin
@@ -176,10 +193,10 @@ bot/
 Phase 1 (Infrastructure)     ██████████  DONE
 Phase 2 (MCP DB)             ██████████  DONE
 Phase 3 (Bot Base)           ██████████  DONE
-Phase 4 (Daily Étendu)       ████████░░  DONE (via Phase 2)
+Phase 4 (Daily Étendu)       ██████████  DONE (incl. Bot as Hub)
 ─────────────────────────────────────────────── MVP Ready
 Phase 5 (Weekly)             ░░░░░░░░░░  TODO
-Phase 6 (Callback)           ░░░░░░░░░░  TODO
+Phase 6 (Callback)           ██░░░░░░░░  PARTIAL (/callback endpoint ready)
 Phase 7 (Polish)             ░░░░░░░░░░  TODO
 ```
 
@@ -191,6 +208,16 @@ Le MVP est **opérationnel** avec:
 2. **MCP Tools** pour query/submit vers DB
 3. **Discord Bot** avec `/daily` et `/weekly` (cache)
 4. **Daily workflow** stocke articles et digests en DB
+5. **Bot HTTP API** pour publication centralisée (n8n → bot → Discord)
+
+### Ports exposés
+
+| Service | Port | Usage |
+|---------|------|-------|
+| PostgreSQL | 5432 | Database |
+| n8n | 5678 | Workflow UI |
+| claude-service | 8080 | Claude API |
+| discord-bot | 8000 | Publication API |
 
 ### Pour tester le MVP
 
@@ -202,8 +229,9 @@ cp .env.example .env
 # 2. Démarrer les services
 docker-compose up -d
 
-# 3. Vérifier les logs
-docker-compose logs -f
+# 3. Vérifier les services
+curl http://localhost:8080/health  # claude-service
+curl http://localhost:8000/health  # discord-bot
 
 # 4. Tester le bot Discord
 # - Inviter le bot sur votre serveur

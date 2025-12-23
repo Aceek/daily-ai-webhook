@@ -9,8 +9,8 @@ Système automatisé de veille AI/ML : n8n collecte → Claude analyse → Postg
 | Database | PostgreSQL 16 | Stockage articles, digests, catégories |
 | Orchestration | n8n (Docker) | Cron, RSS, merge, appel service |
 | Intelligence | Claude Service (FastAPI) | Wrapper Claude CLI, MCP tools |
-| Bot | discord.py | Commandes /daily, /weekly |
-| Output | Discord Webhook | Publication automatique |
+| Bot | discord.py + FastAPI | Commandes Discord + HTTP API publication |
+| Output | Via Bot API | Publication automatique (n8n → bot → Discord) |
 
 ## Architecture
 
@@ -33,10 +33,12 @@ daily-ai-webhook/
 │       ├── _common/          # quality-rules, mcp-usage, research-template
 │       └── ai-news/          # mission, selection, editorial, output-schema
 ├── bot/
-│   ├── main.py               # Discord bot entry point
+│   ├── main.py               # Discord bot + FastAPI entry point
+│   ├── api.py                # HTTP API endpoints (/publish, /health)
 │   ├── cogs/daily.py         # /daily command
 │   ├── cogs/weekly.py        # /weekly command
 │   ├── services/database.py  # DB queries (asyncpg)
+│   ├── services/publisher.py # Digest publication logic
 │   └── Dockerfile
 ├── data/                     # articles.json (runtime)
 └── logs/                     # Exécutions (gitignored)
@@ -55,7 +57,11 @@ Claude: WebSearch + analyse → MCP submit_digest
     ↓
 MCP: sauvegarde PostgreSQL (articles, catégories, digest) + digest.json
     ↓
-n8n → format embeds → Discord webhook → POST /log-workflow
+n8n → POST http://discord-bot:8000/publish
+    ↓
+discord-bot: build embeds → Discord API → update posted_to_discord
+    ↓
+n8n → POST /log-workflow
     ↓
 discord-bot: /daily, /weekly → query PostgreSQL → embeds
 ```
@@ -100,7 +106,7 @@ logs/
 |----------|-------------|
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Auth PostgreSQL |
 | `N8N_USER`, `N8N_PASSWORD` | Auth n8n |
-| `DISCORD_WEBHOOK_URL` | Publication automatique |
+| `DISCORD_WEBHOOK_URL` | Backup (non utilisé si bot disponible) |
 | `DISCORD_TOKEN` | Bot interactif |
 | `DISCORD_GUILD_ID` | Optionnel: sync rapide commands |
 | `CLAUDE_MODEL` | sonnet (défaut) |

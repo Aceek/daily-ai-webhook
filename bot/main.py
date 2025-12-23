@@ -3,16 +3,19 @@
 AI News Discord Bot.
 
 Interactive bot for retrieving daily and weekly AI news digests.
+Also runs an HTTP API for external services to trigger digest publication.
 """
 
 import asyncio
 import logging
-import os
 import sys
 
 import discord
+import uvicorn
 from discord.ext import commands
 
+from api import app as fastapi_app
+from api import set_bot
 from config import settings
 from services.database import close_db, init_db
 
@@ -24,9 +27,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("discord-bot")
 
-# Reduce discord.py noise
+# Reduce discord.py and uvicorn noise
 logging.getLogger("discord").setLevel(logging.WARNING)
 logging.getLogger("discord.http").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 
 class AINewsBot(commands.Bot):
@@ -91,6 +95,18 @@ class AINewsBot(commands.Bot):
         await super().close()
 
 
+async def run_api_server() -> None:
+    """Run the FastAPI server."""
+    config = uvicorn.Config(
+        fastapi_app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
 async def main() -> None:
     """Main entry point."""
     if not settings.discord_token:
@@ -99,8 +115,35 @@ async def main() -> None:
 
     bot = AINewsBot()
 
+    # Set bot reference for API handlers
+    set_bot(bot)
+
+    # Create tasks for both bot and API server
+    bot_task = asyncio.create_task(bot.start(settings.discord_token))
+    api_task = asyncio.create_task(run_api_server())
+
+    logger.info("Starting Discord bot and HTTP API server...")
+
     try:
-        await bot.start(settings.discord_token)
+        # Wait for either task to complete (or fail)
+        done, pending = await asyncio.wait(
+            [bot_task, api_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # If one task completed, cancel the other
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        # Check for exceptions
+        for task in done:
+            if task.exception():
+                logger.error("Task failed: %s", task.exception())
+
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
     finally:

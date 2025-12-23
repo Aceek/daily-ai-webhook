@@ -231,10 +231,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format response for Discord - creates rich embeds from structured digest\nconst response = $input.first().json;\n\nif (!response.success) {\n  console.log('Claude CLI failed:', response.error);\n  return []; // Stop flow on error\n}\n\n// Get the structured digest (new format from MCP)\nconst digest = response.digest;\nif (!digest) {\n  console.log('No digest found in response');\n  return [];\n}\n\n// Category emoji mapping\nconst categoryEmoji = {\n  headlines: '📰',\n  research: '🔬',\n  industry: '💼',\n  watching: '👀'\n};\n\n// Category display names\nconst categoryNames = {\n  headlines: 'Headlines',\n  research: 'Research & Papers',\n  industry: 'Industry & Business',\n  watching: 'Worth Watching'\n};\n\n// Discord color (blue)\nconst embedColor = 5814783;\n\n// Build embeds array\nconst embeds = [];\n\n// Main header embed\nconst totalNews = (digest.headlines?.length || 0) + \n                  (digest.research?.length || 0) + \n                  (digest.industry?.length || 0) + \n                  (digest.watching?.length || 0);\n\nconst headerEmbed = {\n  title: '🤖 Daily AI/ML News Digest',\n  description: `**${digest.digest?.date || new Date().toISOString().split('T')[0]}** — ${totalNews} stories curated from ${response.article_count} articles`,\n  color: embedColor,\n  timestamp: new Date().toISOString()\n};\nembeds.push(headerEmbed);\n\n// Helper function to format news items for a category\nfunction formatCategoryEmbed(category, items) {\n  if (!items || items.length === 0) return null;\n  \n  const emoji = categoryEmoji[category] || '📌';\n  const name = categoryNames[category] || category;\n  \n  // Build description with all news items\n  let description = '';\n  for (const item of items) {\n    const confidence = item.confidence === 'high' ? '' : ' ⚠️';\n    const line = `**[${item.title}](${item.url})**${confidence}\\n${item.summary}\\n*${item.source}*\\n\\n`;\n    \n    // Check Discord limit (4096 chars for description)\n    if (description.length + line.length > 4000) {\n      description += '*(more items truncated)*';\n      break;\n    }\n    description += line;\n  }\n  \n  return {\n    title: `${emoji} ${name}`,\n    description: description.trim(),\n    color: embedColor\n  };\n}\n\n// Add category embeds\nfor (const category of ['headlines', 'research', 'industry', 'watching']) {\n  const items = digest[category];\n  const embed = formatCategoryEmbed(category, items);\n  if (embed) {\n    embeds.push(embed);\n  }\n}\n\n// Add footer to last embed\nif (embeds.length > 0) {\n  const meta = digest.metadata || {};\n  embeds[embeds.length - 1].footer = {\n    text: `${meta.web_searches || 0} web searches | ${meta.fact_checks || 0} fact-checks | ${meta.deep_dives || 0} deep-dives`\n  };\n}\n\n// Discord allows max 10 embeds\nreturn [{\n  json: {\n    embeds: embeds.slice(0, 10)\n  }\n}];"
+        "jsCode": "// Format response for Discord Bot API - creates publish payload\nconst response = $input.first().json;\n\nif (!response.success) {\n  console.log('Claude CLI failed:', response.error);\n  return []; // Stop flow on error\n}\n\n// Get the structured digest (new format from MCP)\nconst digest = response.digest;\nif (!digest) {\n  console.log('No digest found in response');\n  return [];\n}\n\n// Get digest_id from response (saved by MCP submit_digest)\nconst digest_id = response.digest_id || 0;\nconst digest_date = digest.digest?.date || new Date().toISOString().split('T')[0];\n\n// Build the content object for the bot API\n// The bot will build the embeds from this structured content\nconst content = {\n  headlines: digest.headlines || [],\n  research: digest.research || [],\n  industry: digest.industry || [],\n  watching: digest.watching || [],\n  metadata: {\n    articles_analyzed: response.article_count || 0,\n    web_searches: digest.metadata?.web_searches || 0,\n    fact_checks: digest.metadata?.fact_checks || 0,\n    deep_dives: digest.metadata?.deep_dives || 0\n  }\n};\n\nconsole.log(`Sending digest ${digest_id} to Discord Bot API`);\n\nreturn [{\n  json: {\n    type: 'daily',\n    mission_id: 'ai-news',\n    digest_id: digest_id,\n    date: digest_date,\n    content: content\n  }\n}];"
       },
       "id": "code-discord",
-      "name": "Format Discord",
+      "name": "Format Bot Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1850, 400]
@@ -242,7 +242,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.DISCORD_WEBHOOK_URL }}",
+        "url": "http://discord-bot:8000/publish",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -255,17 +255,19 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "http-discord",
-      "name": "Send to Discord",
+      "name": "Publish via Bot",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [2100, 400]
     },
     {
       "parameters": {
-        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID from response if available\nconst claude_execution_id = claudeResponse.execution_id || null;\n\n// Build nodes_executed list\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS TechCrunch AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'RSS MIT Tech Review', status: 'success', error: null },\n  { name: 'HTTP Hacker News', status: 'success', error: null },\n  { name: 'HTTP Reddit ML', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Discord', status: 'success', error: null },\n  { name: 'Send to Discord', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: true\n  }\n}];"
+        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID from response if available\nconst claude_execution_id = claudeResponse.execution_id || null;\n\n// Build nodes_executed list\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS TechCrunch AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'RSS MIT Tech Review', status: 'success', error: null },\n  { name: 'HTTP Hacker News', status: 'success', error: null },\n  { name: 'HTTP Reddit ML', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Bot Payload', status: 'success', error: null },\n  { name: 'Publish via Bot', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: true\n  }\n}];"
       },
       "id": "code-success-log",
       "name": "Prepare Success Log",
@@ -452,18 +454,18 @@
     "Call Claude Service": {
       "main": [
         [
-          { "node": "Format Discord", "type": "main", "index": 0 }
+          { "node": "Format Bot Payload", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Format Discord": {
+    "Format Bot Payload": {
       "main": [
         [
-          { "node": "Send to Discord", "type": "main", "index": 0 }
+          { "node": "Publish via Bot", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Send to Discord": {
+    "Publish via Bot": {
       "main": [
         [
           { "node": "Prepare Success Log", "type": "main", "index": 0 }
