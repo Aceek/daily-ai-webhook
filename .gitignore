@@ -4,8 +4,10 @@
 # Data interchange directory (temporary files for Claude)
 data/
 
-# MCP configuration (contains tokens)
+# MCP configuration (contains tokens at runtime)
 .mcp.json
+# But allow the template in config (uses placeholders)
+!claude-service/config/.mcp.json
 
 # n8n data directory (persist locally, not in repo)
 n8n-data/*

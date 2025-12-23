@@ -194,6 +194,13 @@ class WorkflowLogRequest(BaseModel):
     articles_count: int = 0
     claude_execution_id: str | None = None
     discord_sent: bool = False
+    # Discord publication details
+    discord_message_id: str | None = None
+    discord_channel_id: str | None = None
+    # Database storage details
+    digest_id: int | None = None
+    db_saved: bool = False
+    articles_saved: int = 0
 
 
 class WorkflowLogResponse(BaseModel):
@@ -672,6 +679,11 @@ async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
             articles_count=request.articles_count,
             claude_execution_id=request.claude_execution_id,
             discord_sent=request.discord_sent,
+            discord_message_id=request.discord_message_id,
+            discord_channel_id=request.discord_channel_id,
+            digest_id=request.digest_id,
+            db_saved=request.db_saved,
+            articles_saved=request.articles_saved,
         )
 
         # Save the workflow log (will find matching execution directory if available)

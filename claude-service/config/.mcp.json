@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "submit-digest": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["/app/mcp/server.py"],
+      "env": {
+        "DIGESTS_DIR": "/app/logs/digests",
+        "PYTHONPATH": "/app",
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}
