@@ -477,7 +477,7 @@ class WorkflowLogger:
                         # Update summary if exists
                         summary_path = exec_dir / "SUMMARY.md"
                         if summary_path.exists():
-                            self._update_summary_discord_status(summary_path, workflow_log.discord_sent)
+                            self._update_summary_storage_status(summary_path, workflow_log)
 
                         return path
 
@@ -542,13 +542,34 @@ Node: `{log.error_node}`
 
         return md
 
-    def _update_summary_discord_status(self, summary_path: Path, discord_sent: bool) -> None:
-        """Update Discord status in SUMMARY.md."""
+    def _update_summary_storage_status(
+        self,
+        summary_path: Path,
+        workflow_log: WorkflowLog,
+    ) -> None:
+        """Update Storage section in SUMMARY.md with DB and Discord status."""
         try:
             content = summary_path.read_text(encoding="utf-8")
-            old_status = "| Discord send | ❌ |"
-            new_status = "| Discord send | ✅ |" if discord_sent else "| Discord send | ❌ |"
-            content = content.replace(old_status, new_status)
+
+            # Build new DB status line
+            if workflow_log.db_saved:
+                db_line = f"| Database | ✅ | digest_id={workflow_log.digest_id}, {workflow_log.articles_saved} articles |"
+            else:
+                db_line = "| Database | ❌ | Not saved |"
+
+            # Build new Discord status line
+            if workflow_log.discord_sent:
+                discord_details = f"msg={workflow_log.discord_message_id}" if workflow_log.discord_message_id else "Sent"
+                discord_line = f"| Discord | ✅ | {discord_details} |"
+            else:
+                discord_line = "| Discord | ❌ | Not sent |"
+
+            # Replace Storage section using regex
+            import re
+            storage_pattern = r"\| Database \| [^|]+ \| [^|]* \|\n\| Discord \| [^|]+ \| [^|]* \|"
+            new_storage = f"{db_line}\n{discord_line}"
+            content = re.sub(storage_pattern, new_storage, content)
+
             summary_path.write_text(content, encoding="utf-8")
         except Exception:
             pass
