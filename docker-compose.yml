@@ -1,4 +1,23 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-news-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-ainews}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-ainews}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ainews} -d ${POSTGRES_DB:-ainews}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   n8n:
     image: n8nio/n8n:2.0.3
     container_name: ai-news-n8n
@@ -34,11 +53,15 @@ services:
     build: ./claude-service
     container_name: ai-news-claude
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - CLAUDE_MODEL=${CLAUDE_MODEL:-sonnet}
       - CLAUDE_TIMEOUT=${CLAUDE_TIMEOUT:-600}
       - CLAUDE_RETRY_COUNT=${CLAUDE_RETRY_COUNT:-1}
       - CLAUDE_LOG_LEVEL=${CLAUDE_LOG_LEVEL:-info}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-ainews}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ainews}
     volumes:
       # Named volume for Claude CLI runtime data (statsig, todos, projects, etc.)
       - claude-runtime:/root/.claude
@@ -63,5 +86,7 @@ services:
       - "8080:8080"
 
 volumes:
+  postgres-data:
+    name: ai-news-postgres-data
   claude-runtime:
     name: ai-news-claude-runtime

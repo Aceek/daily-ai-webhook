@@ -9,6 +9,7 @@ This service wraps Claude Code CLI to expose it as an HTTP API.
 import asyncio
 import logging
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -16,6 +17,8 @@ from typing import Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
+
+from database import close_db, init_db, seed_missions
 
 from execution_logger import (
     ExecutionDirectory,
@@ -52,10 +55,15 @@ class Settings(BaseSettings):
     # Allowed tools for agentic workflow (Read added for multi-mission architecture)
     allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest"
 
+    # Database connection (no CLAUDE_ prefix for DATABASE_URL)
+    database_url: str | None = None
+
     class Config:
         """Pydantic settings configuration."""
 
         env_prefix = "CLAUDE_"
+        # Allow DATABASE_URL without prefix
+        fields = {"database_url": {"env": "DATABASE_URL"}}
 
 
 # Valid missions (extensible)
@@ -77,11 +85,32 @@ execution_logger = ExecutionLogger(logs_dir=settings.logs_path)
 # Workflow logger for n8n workflow execution logs
 workflow_logger = WorkflowLogger(logs_dir=settings.logs_path)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: init and cleanup."""
+    # Startup
+    if settings.database_url:
+        await init_db(settings.database_url)
+        await seed_missions()
+        logger.info("Database connected and seeded")
+    else:
+        logger.warning("DATABASE_URL not set, running without database")
+
+    yield
+
+    # Shutdown
+    if settings.database_url:
+        await close_db()
+        logger.info("Database connection closed")
+
+
 # FastAPI application
 app = FastAPI(
     title="Claude Service",
     description="HTTP wrapper for Claude Code CLI",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
