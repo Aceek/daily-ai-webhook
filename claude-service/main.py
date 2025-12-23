@@ -52,8 +52,9 @@ class Settings(BaseSettings):
     # Digests directory (where MCP server writes the structured output)
     digests_path: str = "/app/logs/digests"
 
-    # Allowed tools for agentic workflow (Read added for multi-mission architecture)
-    allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest"
+    # Allowed tools for agentic workflow
+    # MCP tools: submit_digest, submit_weekly_digest, get_categories, get_articles, get_article_stats
+    allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest,mcp__submit-digest__submit_weekly_digest,mcp__submit-digest__get_categories,mcp__submit-digest__get_articles,mcp__submit-digest__get_article_stats"
 
     # Database connection (no CLAUDE_ prefix for DATABASE_URL)
     database_url: str | None = None
