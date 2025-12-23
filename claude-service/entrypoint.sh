@@ -44,14 +44,16 @@ copy_config() {
     fi
 
     # Generate MCP config with DATABASE_URL from environment
+    # Copy to both /root (home) and /app (workdir) for Claude CLI to find it
     if [ -f "$src/.mcp.json" ]; then
-        # Replace ${DATABASE_URL} placeholder with actual value
         if [ -n "$DATABASE_URL" ]; then
             sed "s|\${DATABASE_URL}|$DATABASE_URL|g" "$src/.mcp.json" > "/root/.mcp.json"
-            echo "  - .mcp.json -> /root/.mcp.json (with DATABASE_URL)"
+            cp "/root/.mcp.json" "/app/.mcp.json"
+            echo "  - .mcp.json -> /root/.mcp.json + /app/.mcp.json (with DATABASE_URL)"
         else
             cp "$src/.mcp.json" "/root/.mcp.json"
-            echo "  - .mcp.json -> /root/.mcp.json (no DATABASE_URL)"
+            cp "$src/.mcp.json" "/app/.mcp.json"
+            echo "  - .mcp.json -> /root/.mcp.json + /app/.mcp.json (no DATABASE_URL)"
         fi
     fi
 
