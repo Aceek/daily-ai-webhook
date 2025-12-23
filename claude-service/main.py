@@ -162,6 +162,11 @@ class SummarizeResponse(BaseModel):
         default=None,
         description="Structured digest submitted via MCP submit_digest tool",
     )
+    # Database ID of the saved digest (for /publish endpoint)
+    digest_id: int | None = Field(
+        default=None,
+        description="Database ID of the saved digest",
+    )
 
 
 class HealthResponse(BaseModel):
@@ -603,6 +608,9 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
     import json as json_module
     summary_text = json_module.dumps(digest, ensure_ascii=False) if digest else ""
 
+    # Extract digest_id from digest (added by MCP submit_digest)
+    digest_db_id = digest.get("digest_id") if digest else None
+
     return SummarizeResponse(
         summary=summary_text,
         article_count=len(request.articles),
@@ -613,6 +621,7 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         mission=request.mission,
         workflow_execution_id=request.workflow_execution_id,
         digest=digest,
+        digest_id=digest_db_id,
     )
 
 

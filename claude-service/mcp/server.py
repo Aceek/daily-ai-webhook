@@ -396,7 +396,7 @@ def submit_digest(
     mission_id = metadata.get("mission_id", "ai-news")
     today = date.today()
 
-    # Build the digest structure
+    # Build the digest structure (digest_id added after DB save)
     digest = {
         "digest": {
             "date": today.isoformat(),
@@ -421,22 +421,11 @@ def submit_digest(
         "submitted_at": datetime.now().isoformat(),
     }
 
-    # Write to file
-    output_dir = get_output_dir()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    if os.getenv("EXECUTION_DIR"):
-        output_file = output_dir / "digest.json"
-    else:
-        output_file = output_dir / f"{execution_id}.json"
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(digest, f, indent=2, ensure_ascii=False)
-
     total_items = len(headlines) + len(research or []) + len(industry or []) + len(watching or [])
 
     # Save to database if available
     db_saved = False
+    digest_id = None
     conn = get_db_connection()
     if conn:
         try:
@@ -493,9 +482,26 @@ def submit_digest(
         finally:
             conn.close()
 
+    # Add digest_id to the digest structure before writing to file
+    if digest_id:
+        digest["digest_id"] = digest_id
+
+    # Write to file (after DB save so digest_id is included)
+    output_dir = get_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if os.getenv("EXECUTION_DIR"):
+        output_file = output_dir / "digest.json"
+    else:
+        output_file = output_dir / f"{execution_id}.json"
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(digest, f, indent=2, ensure_ascii=False)
+
     return {
         "status": "success",
         "execution_id": execution_id,
+        "digest_id": digest_id,
         "output_path": str(output_file),
         "total_items": total_items,
         "db_saved": db_saved,
