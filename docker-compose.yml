@@ -85,6 +85,21 @@ services:
     ports:
       - "8080:8080"
 
+  discord-bot:
+    build: ./bot
+    container_name: ai-news-discord-bot
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-ainews}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ainews}
+      - DEFAULT_MISSION=ai-news
+      - DAILY_CHANNEL_ID=${DAILY_CHANNEL_ID:-}
+      - WEEKLY_CHANNEL_ID=${WEEKLY_CHANNEL_ID:-}
+
 volumes:
   postgres-data:
     name: ai-news-postgres-data
