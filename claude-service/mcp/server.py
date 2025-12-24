@@ -408,8 +408,8 @@ def _get_or_create_category(cur, mission_id: str, category_name: str) -> int:
         return row["id"]
 
     cur.execute(
-        "INSERT INTO categories (mission_id, name) VALUES (%s, %s) RETURNING id",
-        (mission_id, category_name),
+        "INSERT INTO categories (mission_id, name, created_at) VALUES (%s, %s, %s) RETURNING id",
+        (mission_id, category_name, datetime.now()),
     )
     return cur.fetchone()["id"]
 
@@ -560,8 +560,8 @@ def submit_digest(
                     cur.execute(
                         """
                         INSERT INTO articles (mission_id, category_id, daily_digest_id,
-                                             title, url, source, description)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                             title, url, source, description, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (url) DO NOTHING
                         """,
                         (
@@ -572,6 +572,7 @@ def submit_digest(
                             item["url"],
                             item["source"],
                             item.get("summary", ""),
+                            datetime.now(),
                         ),
                     )
                     articles_saved += 1
