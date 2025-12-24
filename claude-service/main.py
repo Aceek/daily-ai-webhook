@@ -135,6 +135,33 @@ class SummarizeRequest(BaseModel):
     )
 
 
+class AnalyzeWeeklyRequest(BaseModel):
+    """Request body for the /analyze-weekly endpoint."""
+
+    mission: str = Field(
+        default="ai-news",
+        description="Mission to execute",
+    )
+    week_start: str = Field(
+        ...,
+        description="Start of week (YYYY-MM-DD, should be Monday)",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
+    week_end: str = Field(
+        ...,
+        description="End of week (YYYY-MM-DD, should be Sunday)",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
+    theme: str | None = Field(
+        default=None,
+        description="Optional theme to focus the analysis on",
+    )
+    workflow_execution_id: str | None = Field(
+        default=None,
+        description="ID of the n8n workflow execution for log correlation",
+    )
+
+
 class SummarizeResponse(BaseModel):
     """Response body for the /summarize endpoint."""
 
@@ -161,6 +188,30 @@ class SummarizeResponse(BaseModel):
     digest_id: int | None = Field(
         default=None,
         description="Database ID of the saved digest",
+    )
+
+
+class AnalyzeWeeklyResponse(BaseModel):
+    """Response body for the /analyze-weekly endpoint."""
+
+    success: bool
+    error: str | None = None
+    execution_id: str | None = None
+    log_file: str | None = None
+    mission: str = "ai-news"
+    week_start: str = ""
+    week_end: str = ""
+    theme: str | None = None
+    workflow_execution_id: str | None = None
+    # Structured weekly digest from MCP server
+    digest: dict | None = Field(
+        default=None,
+        description="Structured weekly digest submitted via MCP submit_weekly_digest tool",
+    )
+    # Database ID of the saved digest
+    digest_id: int | None = Field(
+        default=None,
+        description="Database ID of the saved weekly digest",
     )
 
 
@@ -245,6 +296,28 @@ def validate_mission(mission: str) -> tuple[bool, str | None]:
     return True, None
 
 
+def validate_weekly_mission(mission: str) -> tuple[bool, str | None]:
+    """Validate that mission exists and has weekly analysis files.
+
+    Args:
+        mission: Name of the mission to validate.
+
+    Returns:
+        Tuple of (is_valid, error_message).
+    """
+    if mission not in VALID_MISSIONS:
+        return False, f"Unknown mission: {mission}. Valid missions: {VALID_MISSIONS}"
+
+    weekly_path = Path(settings.missions_path) / mission / "weekly"
+    required_files = ["mission.md", "analysis-rules.md", "output-schema.md"]
+
+    for f in required_files:
+        if not (weekly_path / f).exists():
+            return False, f"Missing weekly mission file: {weekly_path / f}"
+
+    return True, None
+
+
 def write_articles_file(articles: list[Article], path: Path) -> None:
     """Write articles to JSON file for Claude to read.
 
@@ -306,6 +379,75 @@ Suis le protocole de démarrage de ton CLAUDE.md.
 Lis les fichiers de mission dans l'ordre indiqué avant de commencer ton analyse.
 
 Remplace {{mission}} par: {mission}
+"""
+
+
+def build_weekly_prompt(
+    mission: str,
+    week_start: str,
+    week_end: str,
+    execution_id: str,
+    research_path: str,
+    theme: str | None = None,
+    workflow_execution_id: str | None = None,
+) -> str:
+    """Build prompt for weekly analysis.
+
+    Claude will use MCP DB tools to fetch articles and analyze trends.
+
+    Args:
+        mission: Name of the mission to execute.
+        week_start: Start of week (YYYY-MM-DD).
+        week_end: End of week (YYYY-MM-DD).
+        execution_id: Unique execution ID for this run.
+        research_path: Path where Claude should write the research document.
+        theme: Optional theme to focus the analysis on.
+        workflow_execution_id: Optional n8n workflow execution ID.
+
+    Returns:
+        Prompt string for Claude CLI.
+    """
+    theme_instruction = ""
+    if theme:
+        theme_instruction = f"""
+theme: {theme}
+
+IMPORTANT: This is a THEMATIC analysis. Focus exclusively on articles related to "{theme}".
+Filter articles by relevance to this theme. Set is_standard: false in your submission.
+"""
+
+    return f"""=== WEEKLY ANALYSIS PARAMETERS ===
+
+mission: {mission}
+week_start: {week_start}
+week_end: {week_end}
+execution_id: {execution_id}
+research_path: {research_path}
+workflow_id: {workflow_execution_id or "standalone"}
+date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+{theme_instruction}
+=== INSTRUCTIONS ===
+
+This is a WEEKLY DIGEST analysis. You must:
+
+1. Read the weekly mission files:
+   - /app/missions/{mission}/weekly/mission.md
+   - /app/missions/{mission}/weekly/analysis-rules.md
+   - /app/missions/{mission}/weekly/output-schema.md
+   - /app/missions/_common/mcp-usage.md
+
+2. Use MCP database tools to fetch data:
+   - get_article_stats(mission_id="{mission}", date_from="{week_start}", date_to="{week_end}")
+   - get_categories(mission_id="{mission}", date_from="{week_start}", date_to="{week_end}")
+   - get_articles(mission_id="{mission}", date_from="{week_start}", date_to="{week_end}", limit=200)
+
+3. Analyze trends and patterns from the week's articles
+
+4. Write your research document to: {research_path}
+
+5. Submit via submit_weekly_digest with all required fields
+
+DO NOT use submit_digest - use submit_weekly_digest for weekly analysis.
 """
 
 
@@ -627,6 +769,141 @@ async def summarize(request: SummarizeRequest) -> SummarizeResponse:
         execution_id=exec_log.execution_id,
         log_file=str(exec_dir.path),
         mission=request.mission,
+        workflow_execution_id=request.workflow_execution_id,
+        digest=digest,
+        digest_id=digest_db_id,
+    )
+
+
+@app.post("/analyze-weekly", response_model=AnalyzeWeeklyResponse)
+async def analyze_weekly(request: AnalyzeWeeklyRequest) -> AnalyzeWeeklyResponse:
+    """Generate a weekly digest by analyzing articles from database.
+
+    Uses MCP DB tools to fetch articles from the specified week,
+    then analyzes trends and patterns.
+
+    Args:
+        request: Request containing week dates and optional theme.
+
+    Returns:
+        Weekly analysis response with trends, top stories, and insights.
+    """
+    import uuid
+
+    logger.info(
+        "Weekly analysis requested: mission='%s', week=%s to %s, theme=%s",
+        request.mission,
+        request.week_start,
+        request.week_end,
+        request.theme,
+    )
+
+    # Validate weekly mission files exist
+    valid, error = validate_weekly_mission(request.mission)
+    if not valid:
+        logger.error("Invalid weekly mission: %s", error)
+        return AnalyzeWeeklyResponse(
+            success=False,
+            error=error,
+            mission=request.mission,
+            week_start=request.week_start,
+            week_end=request.week_end,
+        )
+
+    # Generate execution ID
+    execution_id = f"weekly-{uuid.uuid4().hex[:8]}"
+
+    # Create execution directory
+    exec_dir = execution_logger.create_execution_dir(execution_id)
+    logger.info("Created execution directory: %s", exec_dir.path)
+
+    start_time = time.time()
+    prompt = ""
+    claude_result: ClaudeResult | None = None
+
+    try:
+        prompt = build_weekly_prompt(
+            mission=request.mission,
+            week_start=request.week_start,
+            week_end=request.week_end,
+            execution_id=execution_id,
+            research_path=str(exec_dir.research_path),
+            theme=request.theme,
+            workflow_execution_id=request.workflow_execution_id,
+        )
+        claude_result = await call_claude_cli(prompt, exec_dir)
+
+        if claude_result.success:
+            logger.info("Weekly analysis completed for mission '%s'", request.mission)
+        else:
+            logger.error("Claude CLI failed: %s", claude_result.error)
+
+    except Exception as e:
+        logger.error("Error in weekly analysis: %s", e)
+        claude_result = ClaudeResult(success=False, error=str(e))
+
+    # Calculate duration
+    duration = time.time() - start_time
+
+    # Read the digest file created by MCP submit_weekly_digest tool
+    digest = read_digest_file(exec_dir)
+
+    # Create execution log (reusing same structure, no articles for weekly)
+    exec_log = create_execution_log(
+        articles=[],  # Weekly doesn't receive articles directly
+        prompt=prompt,
+        response=claude_result.response if claude_result else "",
+        duration=duration,
+        success=claude_result.success if claude_result else False,
+        error=claude_result.error if claude_result else "Unknown error",
+        timeline=claude_result.timeline if claude_result else [],
+        input_tokens=claude_result.input_tokens if claude_result else 0,
+        output_tokens=claude_result.output_tokens if claude_result else 0,
+        cost_usd=claude_result.cost_usd if claude_result else 0.0,
+        workflow_execution_id=request.workflow_execution_id,
+        execution_id=execution_id,
+        mission=request.mission,
+    )
+
+    # Save logs
+    try:
+        execution_logger.save(exec_log, exec_dir=exec_dir, digest=digest)
+        logger.info(
+            "Weekly execution logs saved to: %s (duration: %.2fs)",
+            exec_dir.path,
+            duration,
+        )
+    except Exception as log_error:
+        logger.error("Failed to save execution log: %s", log_error)
+
+    # Determine success
+    final_success = (claude_result.success if claude_result else False) and digest is not None
+    final_error = None
+
+    # Extract digest_id from digest
+    digest_db_id = digest.get("digest_id") if digest else None
+
+    # Validate DB persistence
+    if final_success and digest_db_id is None:
+        final_success = False
+        final_error = "Weekly digest created but not saved to database"
+        logger.error("Weekly digest validation failed: no digest_id")
+
+    if not final_success and final_error is None:
+        if claude_result and not claude_result.success:
+            final_error = claude_result.error
+        elif digest is None:
+            final_error = "Claude did not call submit_weekly_digest tool"
+
+    return AnalyzeWeeklyResponse(
+        success=final_success,
+        error=final_error,
+        execution_id=execution_id,
+        log_file=str(exec_dir.path),
+        mission=request.mission,
+        week_start=request.week_start,
+        week_end=request.week_end,
+        theme=request.theme,
         workflow_execution_id=request.workflow_execution_id,
         digest=digest,
         digest_id=digest_db_id,
