@@ -116,27 +116,67 @@ claude-service ───► discord-bot:8000 ───► Discord API
 
 ---
 
-## Phase 5: Workflow Weekly 🔲
+## Phase 4.5: Reliability & Observability ✅
 
-### 5.1 Mission weekly
-- [ ] missions/ai-news/weekly/mission.md
-- [ ] missions/ai-news/weekly/analysis-rules.md
-- [ ] missions/ai-news/weekly/output-schema.md
+### 4.5.1 MCP Environment Fix ✅
+- [x] Workaround bug Claude Code #1254 (env vars non passées aux subprocess MCP)
+- [x] Créé `mcp/run_server.sh` - wrapper bash héritant l'environnement parent
+- [x] Installation dans `/usr/local/bin/mcp-run-server` (hors volume mount)
+- [x] Mise à jour `.mcp.json` pour utiliser le wrapper
 
-### 5.2 Endpoint /analyze-weekly
-- [ ] claude-service: nouveau endpoint
-- [ ] Params: mission, date_from, date_to, theme?
-- [ ] Appel Claude CLI avec mission weekly
-- [ ] Claude utilise MCP DB tools pour query articles
+### 4.5.2 DB Constraints Fix ✅
+- [x] Fix INSERT daily_digests (ajout `posted_to_discord=False`)
+- [x] Fix INSERT categories (ajout `created_at`)
+- [x] Fix INSERT articles (ajout `created_at`)
+- [x] Fix INSERT weekly_digests (ajout `posted_to_discord=False`)
 
-### 5.3 Workflow n8n weekly
-- [ ] Cron Lundi 9h
-- [ ] POST /analyze-weekly
-- [ ] Callback ou direct publish
+### 4.5.3 MCP Structured Logging ✅
+- [x] Classe `MCPLogger` avec niveaux (INFO, OK, ERROR, WARN, OP)
+- [x] Écriture vers `mcp.log` dans dossier exécution
+- [x] Tracking opérations DB avec statut (✓/✗)
+- [x] Erreurs détaillées dans réponse MCP (`db_error`, `operations`)
 
-### 5.4 Stockage weekly_digest
-- [x] DB model et submit tool ready
-- [ ] Test end-to-end
+### 4.5.4 Pipeline Status Updates ✅
+- [x] SUMMARY.md mis à jour après publication Discord
+- [x] Référence `mcp.log` ajoutée dans SUMMARY.md
+
+**Commits:**
+- `fix(mcp): resolve DB save failures and add structured logging`
+- `fix(mcp): add created_at to categories and articles INSERT statements`
+- `fix(logs): update Pipeline Discord status in SUMMARY.md after publication`
+
+---
+
+## Phase 5: Workflow Weekly ✅
+
+### 5.1 Mission weekly ✅
+- [x] missions/ai-news/weekly/mission.md
+- [x] missions/ai-news/weekly/analysis-rules.md
+- [x] missions/ai-news/weekly/output-schema.md
+
+### 5.2 Endpoint /analyze-weekly ✅
+- [x] claude-service: nouveau endpoint
+- [x] Params: mission, week_start, week_end, theme
+- [x] Appel Claude CLI avec mission weekly
+- [x] Claude utilise MCP DB tools pour query articles
+- [x] validate_weekly_mission() pour vérifier fichiers
+
+### 5.3 Workflow n8n weekly ✅
+- [x] Cron Lundi 9h (Europe/Paris)
+- [x] Calcul dates semaine précédente (Mon-Sun)
+- [x] POST /analyze-weekly
+- [x] Format Bot Payload pour weekly
+- [x] Publish via Bot (type: weekly)
+- [x] Error handling avec Error Trigger
+
+### 5.4 Stockage weekly_digest ✅
+- [x] DB model et submit tool ready (Phase 2)
+- [x] Intégration end-to-end
+
+**Commits:**
+- `feat(weekly): add weekly mission files for ai-news`
+- `feat(weekly): add /analyze-weekly endpoint for weekly digest generation`
+- `feat(weekly): add n8n workflow for weekly digest generation`
 
 ---
 
@@ -194,8 +234,9 @@ Phase 1 (Infrastructure)     ██████████  DONE
 Phase 2 (MCP DB)             ██████████  DONE
 Phase 3 (Bot Base)           ██████████  DONE
 Phase 4 (Daily Étendu)       ██████████  DONE (incl. Bot as Hub)
-─────────────────────────────────────────────── MVP Ready
-Phase 5 (Weekly)             ░░░░░░░░░░  TODO
+Phase 4.5 (Reliability)      ██████████  DONE (MCP logging, DB fixes)
+Phase 5 (Weekly)             ██████████  DONE (endpoint + workflow + mission)
+─────────────────────────────────────────────── Feature Complete
 Phase 6 (Callback)           ██░░░░░░░░  PARTIAL (/callback endpoint ready)
 Phase 7 (Polish)             ░░░░░░░░░░  TODO
 ```
@@ -206,9 +247,23 @@ Le MVP est **opérationnel** avec:
 
 1. **PostgreSQL** pour stockage persistant
 2. **MCP Tools** pour query/submit vers DB
-3. **Discord Bot** avec `/daily` et `/weekly` (cache)
-4. **Daily workflow** stocke articles et digests en DB
-5. **Bot HTTP API** pour publication centralisée (n8n → bot → Discord)
+3. **Discord Bot** avec `/daily` et `/weekly` commands
+4. **Daily workflow** collecte RSS → Claude → DB → Discord
+5. **Weekly workflow** analyse DB → Claude → trends → Discord
+6. **Bot HTTP API** pour publication centralisée (n8n → bot → Discord)
+7. **MCP Logging** pour observabilité des opérations DB
+
+### Structure Logs
+
+```
+logs/YYYY-MM-DD/HHMMSS_execid/
+├── SUMMARY.md       # Vue rapide: status, pipeline, top stories
+├── mcp.log          # Log structuré opérations MCP (Phase 4.5)
+├── digest.json      # Output structuré pour Discord
+├── research.md      # Document recherche Claude
+├── workflow.md      # Log n8n nodes
+└── raw/timeline.json
+```
 
 ### Ports exposés
 
@@ -244,7 +299,54 @@ curl http://localhost:8000/health  # discord-bot
 Phase 2 requires Phase 1
 Phase 3 requires Phase 1
 Phase 4 requires Phase 1, 2
-Phase 5 requires Phase 1, 2, 4
+Phase 4.5 requires Phase 4
+Phase 5 requires Phase 1, 2, 4, 4.5
 Phase 6 requires Phase 3, 5
 Phase 7 requires all above
 ```
+
+---
+
+## Notes Techniques
+
+### Bug Claude Code #1254: MCP Environment Variables
+
+**Problème:** Les variables `env` définies dans `.mcp.json` ne sont pas passées aux subprocess MCP par Claude CLI.
+
+```json
+// .mcp.json - les env vars ne fonctionnent PAS
+{
+  "mcpServers": {
+    "db-tools": {
+      "command": "python",
+      "args": ["mcp/server.py"],
+      "env": {
+        "DATABASE_URL": "..."  // ❌ Non passé au subprocess
+      }
+    }
+  }
+}
+```
+
+**Workaround:** Wrapper bash qui hérite l'environnement parent.
+
+```bash
+# mcp/run_server.sh
+#!/bin/bash
+exec python /app/mcp/server.py "$@"
+```
+
+```json
+// .mcp.json - utilise le wrapper
+{
+  "mcpServers": {
+    "db-tools": {
+      "command": "/usr/local/bin/mcp-run-server"
+    }
+  }
+}
+```
+
+**Important:** Le wrapper doit être dans un path non affecté par les volume mounts Docker (`/usr/local/bin/` et non `/app/mcp/`).
+
+**Référence:** https://github.com/anthropics/claude-code/issues/1254
