@@ -713,38 +713,91 @@ def submit_weekly_digest(
 
     params = metadata.get("theme") if metadata else None
 
+    logger.info(f"submit_weekly_digest called", execution_id=execution_id, week=f"{week_start} to {week_end}")
+
     # Save to database
-    conn = get_db_connection()
+    digest_id = None
+    db_error = None
+
+    conn, conn_error = get_db_connection()
     if not conn:
-        return {"status": "error", "message": "Database not available for weekly digest"}
+        db_error = conn_error
+        logger.operation("db_connect", "error", conn_error or "Unknown error")
+    else:
+        logger.operation("db_connect", "success", "Connected to PostgreSQL")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO weekly_digests (mission_id, week_start, week_end, params, content, is_standard, posted_to_discord, generated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (mission_id, week_start, week_end, json.dumps({"theme": params}) if params else None, json.dumps(content), is_standard, False, datetime.now()),
+                )
+                digest_id = cur.fetchone()["id"]
+                conn.commit()
+                logger.operation("insert_weekly_digest", "success", f"digest_id={digest_id}")
+        except Exception as e:
+            conn.rollback()
+            db_error = str(e)
+            logger.operation("db_save", "error", str(e))
+            logger.error(f"Database save failed: {e}")
+        finally:
+            conn.close()
 
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO weekly_digests (mission_id, week_start, week_end, params, content, is_standard, posted_to_discord)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (mission_id, week_start, week_end, json.dumps({"theme": params}) if params else None, json.dumps(content), is_standard, False),
-            )
-            digest_id = cur.fetchone()["id"]
-            conn.commit()
+    # Build the full digest structure with digest_id
+    digest = {
+        "digest_id": digest_id,
+        "summary": summary,
+        "trends": trends,
+        "top_stories": top_stories,
+        "category_analysis": category_analysis or {},
+        "metadata": {
+            **(metadata or {}),
+            "execution_id": execution_id,
+            "mission_id": mission_id,
+            "week_start": week_start,
+            "week_end": week_end,
+        },
+        "generated_at": content["generated_at"],
+    }
 
-            return {
-                "status": "success",
-                "execution_id": execution_id,
-                "digest_id": digest_id,
-                "week_range": f"{week_start} to {week_end}",
-                "trends_count": len(trends),
-                "top_stories_count": len(top_stories),
-                "message": "Weekly digest saved successfully.",
-            }
-    except Exception as e:
-        conn.rollback()
-        return {"status": "error", "message": str(e)}
-    finally:
-        conn.close()
+    # Write to file (required for main.py to read the digest)
+    output_dir = get_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if os.getenv("EXECUTION_DIR"):
+        output_file = output_dir / "digest.json"
+    else:
+        output_file = output_dir / f"{execution_id}.json"
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(digest, f, indent=2, ensure_ascii=False)
+
+    logger.operation("write_file", "success", str(output_file))
+
+    # Return result
+    if digest_id:
+        logger.success(f"submit_weekly_digest completed", digest_id=digest_id)
+        return {
+            "status": "success",
+            "execution_id": execution_id,
+            "digest_id": digest_id,
+            "output_path": str(output_file),
+            "week_range": f"{week_start} to {week_end}",
+            "trends_count": len(trends),
+            "top_stories_count": len(top_stories),
+            "operations": logger.get_operations_summary(),
+            "message": "Weekly digest saved successfully.",
+        }
+    else:
+        logger.warn(f"submit_weekly_digest completed without DB save", error=db_error)
+        return {
+            "status": "error",
+            "message": f"Failed to save weekly digest to database: {db_error}",
+            "operations": logger.get_operations_summary(),
+        }
 
 
 if __name__ == "__main__":
