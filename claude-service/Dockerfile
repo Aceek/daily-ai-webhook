@@ -34,8 +34,13 @@ RUN chmod +x /entrypoint.sh
 # Create logs directories (will be mounted)
 RUN mkdir -p /app/logs /app/logs/research /app/logs/digests
 
-# Create mcp directory (will be mounted)
+# Create mcp directory (server.py will be mounted at runtime)
 RUN mkdir -p /app/mcp
+
+# Copy MCP wrapper script to a location not affected by volume mount
+# This script inherits parent env to work around Claude Code bug #1254
+COPY mcp/run_server.sh /usr/local/bin/mcp-run-server
+RUN chmod +x /usr/local/bin/mcp-run-server
 
 # Expose port
 EXPOSE 8080
