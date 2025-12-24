@@ -1,0 +1,257 @@
+{
+  "name": "Weekly AI News Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtDay": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Weekly Monday 9h Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate workflow execution ID and calculate week dates\nconst workflow_execution_id = `wf-weekly-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\nconst started_at = new Date().toISOString();\n\n// Calculate previous week (Monday to Sunday)\nconst today = new Date();\nconst dayOfWeek = today.getDay();\n\n// Previous Monday (go back to last week's Monday)\nconst prevMonday = new Date(today);\nprevMonday.setDate(today.getDate() - dayOfWeek - 6);\n\n// Previous Sunday\nconst prevSunday = new Date(prevMonday);\nprevSunday.setDate(prevMonday.getDate() + 6);\n\n// Format as YYYY-MM-DD\nconst week_start = prevMonday.toISOString().split('T')[0];\nconst week_end = prevSunday.toISOString().split('T')[0];\n\nconsole.log(`Weekly analysis: ${week_start} to ${week_end}`);\n\nreturn [{\n  json: {\n    workflow_execution_id,\n    started_at,\n    workflow_name: 'Weekly AI News Digest',\n    week_start,\n    week_end\n  }\n}];"
+      },
+      "id": "init-execution",
+      "name": "Init Execution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare payload for /analyze-weekly endpoint\nconst initData = $input.first().json;\n\nconsole.log(`Requesting weekly analysis for ${initData.week_start} to ${initData.week_end}`);\n\nreturn [{\n  json: {\n    mission: 'ai-news',\n    week_start: initData.week_start,\n    week_end: initData.week_end,\n    theme: null,\n    workflow_execution_id: initData.workflow_execution_id\n  }\n}];"
+      },
+      "id": "code-payload",
+      "name": "Prepare Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://claude-service:8080/analyze-weekly",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 660000
+        }
+      },
+      "id": "http-claude",
+      "name": "Call Claude Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format response for Discord Bot API - creates weekly publish payload\nconst response = $input.first().json;\nconst initData = $('Init Execution').first().json;\n\nif (!response.success) {\n  throw new Error(`Weekly analysis failed: ${response.error}`);\n}\n\n// Get the structured digest\nconst digest = response.digest;\nif (!digest) {\n  throw new Error('No digest found in response - Claude did not call submit_weekly_digest');\n}\n\n// Get digest_id from response\nconst digest_id = response.digest_id || 0;\n\n// Build the content object for the bot API\nconst content = {\n  summary: digest.summary || '',\n  trends: digest.trends || [],\n  top_stories: digest.top_stories || [],\n  category_analysis: digest.category_analysis || {},\n  metadata: {\n    articles_analyzed: digest.metadata?.articles_analyzed || 0,\n    web_searches: digest.metadata?.web_searches || 0\n  }\n};\n\nconsole.log(`Sending weekly digest ${digest_id} to Discord Bot API`);\n\nreturn [{\n  json: {\n    type: 'weekly',\n    mission_id: 'ai-news',\n    digest_id: digest_id,\n    week_start: initData.week_start,\n    week_end: initData.week_end,\n    content: content\n  }\n}];"
+      },
+      "id": "code-discord",
+      "name": "Format Bot Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://discord-bot:8000/publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-discord",
+      "name": "Publish via Bot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\nconst botResponse = $('Publish via Bot').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Extract info from responses\nconst claude_execution_id = claudeResponse.execution_id || null;\nconst digest_id = claudeResponse.digest_id || null;\nconst db_saved = digest_id !== null;\n\n// Discord publication info\nconst discord_message_id = botResponse.message_id || null;\nconst discord_channel_id = botResponse.channel_id || null;\nconst discord_sent = botResponse.posted_to_discord === true;\n\n// Build nodes_executed list\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Bot Payload', status: 'success', error: null },\n  { name: 'Publish via Bot', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: 0,\n    claude_execution_id: claude_execution_id,\n    discord_sent: discord_sent,\n    discord_message_id: discord_message_id,\n    discord_channel_id: discord_channel_id,\n    digest_id: digest_id,\n    db_saved: db_saved,\n    articles_saved: 0\n  }\n}];"
+      },
+      "id": "code-success-log",
+      "name": "Prepare Success Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://claude-service:8080/log-workflow",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-log-success",
+      "name": "Log Workflow Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 300]
+    },
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 550]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare error log data for /log-workflow endpoint\nconst errorData = $input.first().json;\nconst finished_at = new Date().toISOString();\n\nlet workflow_execution_id = null;\nlet started_at = null;\nlet workflow_name = 'Weekly AI News Digest';\nlet claude_execution_id = null;\nlet digest_id = null;\n\ntry {\n  const initData = $('Init Execution').first().json;\n  workflow_execution_id = initData.workflow_execution_id;\n  started_at = initData.started_at;\n  workflow_name = initData.workflow_name;\n} catch (e) {\n  workflow_execution_id = `wf-weekly-error-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\n  started_at = finished_at;\n}\n\n// Try to get claude execution ID if available\ntry {\n  const claudeResponse = $('Call Claude Service').first().json;\n  claude_execution_id = claudeResponse.execution_id || null;\n  digest_id = claudeResponse.digest_id || null;\n} catch (e) {}\n\nconst error_message = errorData.execution?.error?.message || \n                      errorData.error?.message || \n                      'Unknown error';\nconst error_node = errorData.execution?.lastNodeExecuted || \n                   errorData.workflow?.lastNodeExecuted ||\n                   'Unknown node';\n\nconst nodes_executed = [\n  { name: error_node, status: 'error', error: error_message }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: workflow_execution_id,\n    workflow_name: workflow_name,\n    started_at: started_at,\n    finished_at: finished_at,\n    status: 'error',\n    error_message: error_message,\n    error_node: error_node,\n    nodes_executed: nodes_executed,\n    articles_count: 0,\n    claude_execution_id: claude_execution_id,\n    discord_sent: false,\n    discord_message_id: null,\n    discord_channel_id: null,\n    digest_id: digest_id,\n    db_saved: false,\n    articles_saved: 0\n  }\n}];"
+      },
+      "id": "code-error-log",
+      "name": "Prepare Error Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 550]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://claude-service:8080/log-workflow",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-log-error",
+      "name": "Log Workflow Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 550]
+    }
+  ],
+  "connections": {
+    "Weekly Monday 9h Trigger": {
+      "main": [
+        [
+          { "node": "Init Execution", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Init Execution": {
+      "main": [
+        [
+          { "node": "Prepare Payload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Payload": {
+      "main": [
+        [
+          { "node": "Call Claude Service", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Call Claude Service": {
+      "main": [
+        [
+          { "node": "Format Bot Payload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Format Bot Payload": {
+      "main": [
+        [
+          { "node": "Publish via Bot", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Publish via Bot": {
+      "main": [
+        [
+          { "node": "Prepare Success Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Success Log": {
+      "main": [
+        [
+          { "node": "Log Workflow Success", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          { "node": "Prepare Error Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Error Log": {
+      "main": [
+        [
+          { "node": "Log Workflow Error", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "pinData": {}
+}
