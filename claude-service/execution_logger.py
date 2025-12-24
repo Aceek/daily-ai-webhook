@@ -303,6 +303,7 @@ class ExecutionDirectory:
 - [digest.json](./digest.json) - Final output
 - [research.md](./research.md) - Research document
 - [workflow.md](./workflow.md) - Workflow log
+- [mcp.log](./mcp.log) - MCP operations log
 """
 
         if log.error:

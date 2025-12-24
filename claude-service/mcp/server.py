@@ -11,6 +11,7 @@ The server uses synchronous psycopg2 for DB operations.
 
 import json
 import os
+import sys
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -19,22 +20,112 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from mcp.server.fastmcp import FastMCP
 
+
+# =============================================================================
+# MCP Logger - Writes to execution directory for debugging
+# =============================================================================
+
+
+class MCPLogger:
+    """
+    Structured logger for MCP operations.
+
+    Writes to mcp.log in the execution directory for persistent debugging.
+    Also outputs to stderr for real-time monitoring.
+    """
+
+    def __init__(self):
+        self.exec_dir = os.getenv("EXECUTION_DIR")
+        self.log_file = Path(self.exec_dir) / "mcp.log" if self.exec_dir else None
+        self.operations: list[dict] = []  # Track operations for summary
+
+    def _timestamp(self) -> str:
+        return datetime.now().strftime("%H:%M:%S.%f")[:-3]
+
+    def _write(self, level: str, message: str, details: dict | None = None):
+        """Write log entry to file and stderr."""
+        timestamp = self._timestamp()
+        log_line = f"[{timestamp}] [{level}] {message}"
+
+        # Always write to stderr (may be captured by parent)
+        print(f"[MCP] {log_line}", file=sys.stderr, flush=True)
+
+        # Write to file if execution directory is set
+        if self.log_file:
+            try:
+                with open(self.log_file, "a") as f:
+                    f.write(f"{log_line}\n")
+                    if details:
+                        for key, value in details.items():
+                            f.write(f"         {key}: {value}\n")
+            except Exception:
+                pass  # Don't fail on logging errors
+
+    def info(self, message: str, **details):
+        self._write("INFO", message, details if details else None)
+
+    def success(self, message: str, **details):
+        self._write("OK", message, details if details else None)
+
+    def error(self, message: str, **details):
+        self._write("ERROR", message, details if details else None)
+
+    def warn(self, message: str, **details):
+        self._write("WARN", message, details if details else None)
+
+    def operation(self, name: str, status: str, details: str = ""):
+        """Record an operation for the summary."""
+        self.operations.append({
+            "timestamp": self._timestamp(),
+            "name": name,
+            "status": status,
+            "details": details
+        })
+        symbol = "✓" if status == "success" else "✗" if status == "error" else "○"
+        self._write("OP", f"{symbol} {name}", {"details": details} if details else None)
+
+    def get_operations_summary(self) -> list[dict]:
+        """Get list of operations for inclusion in response."""
+        return self.operations.copy()
+
+
+# Global logger instance
+logger = MCPLogger()
+
 # Initialize MCP server
 mcp = FastMCP("submit-digest")
 
+# Log startup
+logger.info("MCP Server starting",
+            database_url_set=bool(os.getenv("DATABASE_URL")),
+            execution_dir=os.getenv("EXECUTION_DIR", "not set"))
 
-def get_db_connection():
+
+def get_db_connection() -> tuple[Any | None, str | None]:
     """Get a synchronous database connection.
 
-    Returns None if DATABASE_URL is not set (graceful degradation).
+    Returns:
+        Tuple of (connection, error_message).
+        Connection is None if unavailable, with error_message explaining why.
     """
     db_url = os.getenv("DATABASE_URL")
+
     if not db_url:
-        return None
+        error = "DATABASE_URL not set"
+        logger.warn(error)
+        return None, error
 
     # Convert asyncpg URL to psycopg2 format
     sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
-    return psycopg2.connect(sync_url, cursor_factory=RealDictCursor)
+
+    try:
+        conn = psycopg2.connect(sync_url, cursor_factory=RealDictCursor)
+        logger.success("Database connected", host=sync_url.split("@")[1].split("/")[0] if "@" in sync_url else "unknown")
+        return conn, None
+    except Exception as e:
+        error = f"Connection failed: {e}"
+        logger.error(error)
+        return None, error
 
 
 def get_output_dir() -> Path:
@@ -70,9 +161,9 @@ def get_categories(
     Returns:
         Dict with categories list and count
     """
-    conn = get_db_connection()
+    conn, db_error = get_db_connection()
     if not conn:
-        return {"status": "error", "message": "Database not available"}
+        return {"status": "error", "message": f"Database not available: {db_error}"}
 
     try:
         with conn.cursor() as cur:
@@ -143,9 +234,9 @@ def get_articles(
     Returns:
         Dict with articles list and metadata
     """
-    conn = get_db_connection()
+    conn, db_error = get_db_connection()
     if not conn:
-        return {"status": "error", "message": "Database not available"}
+        return {"status": "error", "message": f"Database not available: {db_error}"}
 
     limit = min(limit, 500)  # Cap at 500
 
@@ -228,9 +319,9 @@ def get_article_stats(
     Returns:
         Dict with total count, category breakdown, source breakdown, and daily counts
     """
-    conn = get_db_connection()
+    conn, db_error = get_db_connection()
     if not conn:
-        return {"status": "error", "message": "Database not available"}
+        return {"status": "error", "message": f"Database not available: {db_error}"}
 
     try:
         with conn.cursor() as cur:
@@ -424,24 +515,35 @@ def submit_digest(
     total_items = len(headlines) + len(research or []) + len(industry or []) + len(watching or [])
 
     # Save to database if available
+    logger.info(f"submit_digest called", execution_id=execution_id, items=total_items)
+
     db_saved = False
+    db_error = None
     digest_id = None
-    conn = get_db_connection()
-    if conn:
+    articles_saved = 0
+
+    conn, conn_error = get_db_connection()
+
+    if not conn:
+        db_error = conn_error
+        logger.operation("db_connect", "error", conn_error or "Unknown error")
+    else:
+        logger.operation("db_connect", "success", "Connected to PostgreSQL")
         try:
             with conn.cursor() as cur:
                 # Insert or update daily_digest
                 cur.execute(
                     """
-                    INSERT INTO daily_digests (mission_id, date, content, generated_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO daily_digests (mission_id, date, content, generated_at, posted_to_discord)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (mission_id, date)
                     DO UPDATE SET content = EXCLUDED.content, generated_at = EXCLUDED.generated_at
                     RETURNING id
                     """,
-                    (mission_id, today, json.dumps(digest), datetime.now()),
+                    (mission_id, today, json.dumps(digest), datetime.now(), False),
                 )
                 digest_id = cur.fetchone()["id"]
+                logger.operation("insert_digest", "success", f"digest_id={digest_id}")
 
                 # Create categories and store articles
                 all_items = [
@@ -472,13 +574,18 @@ def submit_digest(
                             item.get("summary", ""),
                         ),
                     )
+                    articles_saved += 1
 
                 conn.commit()
                 db_saved = True
+                logger.operation("insert_articles", "success", f"{articles_saved} articles")
+                logger.operation("commit", "success", "Transaction committed")
+
         except Exception as e:
             conn.rollback()
-            # Log but don't fail - file save is the primary output
-            print(f"Warning: DB save failed: {e}")
+            db_error = str(e)
+            logger.operation("db_save", "error", str(e))
+            logger.error(f"Database save failed: {e}")
         finally:
             conn.close()
 
@@ -498,15 +605,28 @@ def submit_digest(
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(digest, f, indent=2, ensure_ascii=False)
 
-    return {
+    logger.operation("write_file", "success", str(output_file))
+
+    # Build result with detailed error info
+    result = {
         "status": "success",
         "execution_id": execution_id,
         "digest_id": digest_id,
         "output_path": str(output_file),
         "total_items": total_items,
         "db_saved": db_saved,
+        "articles_saved": articles_saved,
+        "db_error": db_error,  # Include error details for debugging
+        "operations": logger.get_operations_summary(),  # Include operation log
         "message": f"Digest saved successfully with {total_items} news items.",
     }
+
+    if db_saved:
+        logger.success(f"submit_digest completed", digest_id=digest_id, articles=articles_saved)
+    else:
+        logger.warn(f"submit_digest completed without DB save", error=db_error)
+
+    return result
 
 
 @mcp.tool()
@@ -601,11 +721,11 @@ def submit_weekly_digest(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO weekly_digests (mission_id, week_start, week_end, params, content, is_standard)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO weekly_digests (mission_id, week_start, week_end, params, content, is_standard, posted_to_discord)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (mission_id, week_start, week_end, json.dumps({"theme": params}) if params else None, json.dumps(content), is_standard),
+                (mission_id, week_start, week_end, json.dumps({"theme": params}) if params else None, json.dumps(content), is_standard, False),
             )
             digest_id = cur.fetchone()["id"]
             conn.commit()

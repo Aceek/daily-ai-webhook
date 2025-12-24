@@ -43,18 +43,13 @@ copy_config() {
         echo "  - docs/"
     fi
 
-    # Generate MCP config with DATABASE_URL from environment
-    # Copy to both /root (home) and /app (workdir) for Claude CLI to find it
+    # Copy MCP config to both /root (home) and /app (workdir) for Claude CLI to find it
+    # Note: We use a wrapper script (/usr/local/bin/mcp-run-server) that inherits parent env,
+    # avoiding Claude Code bug #1254 where env vars aren't passed to MCP subprocesses
     if [ -f "$src/.mcp.json" ]; then
-        if [ -n "$DATABASE_URL" ]; then
-            sed "s|\${DATABASE_URL}|$DATABASE_URL|g" "$src/.mcp.json" > "/root/.mcp.json"
-            cp "/root/.mcp.json" "/app/.mcp.json"
-            echo "  - .mcp.json -> /root/.mcp.json + /app/.mcp.json (with DATABASE_URL)"
-        else
-            cp "$src/.mcp.json" "/root/.mcp.json"
-            cp "$src/.mcp.json" "/app/.mcp.json"
-            echo "  - .mcp.json -> /root/.mcp.json + /app/.mcp.json (no DATABASE_URL)"
-        fi
+        cp "$src/.mcp.json" "/root/.mcp.json"
+        cp "$src/.mcp.json" "/app/.mcp.json"
+        echo "  - .mcp.json -> /root/.mcp.json + /app/.mcp.json"
     fi
 
     echo "[entrypoint] Config copy complete."
