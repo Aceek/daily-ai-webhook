@@ -548,9 +548,18 @@ Node: `{log.error_node}`
         summary_path: Path,
         workflow_log: WorkflowLog,
     ) -> None:
-        """Update Storage section in SUMMARY.md with DB and Discord status."""
+        """Update Storage and Pipeline sections in SUMMARY.md with DB and Discord status."""
         try:
             content = summary_path.read_text(encoding="utf-8")
+            import re
+
+            # Update Pipeline Discord status
+            if workflow_log.discord_sent:
+                content = re.sub(
+                    r"\| Discord send \| ❌ \|",
+                    "| Discord send | ✅ |",
+                    content
+                )
 
             # Build new DB status line
             if workflow_log.db_saved:
@@ -566,7 +575,6 @@ Node: `{log.error_node}`
                 discord_line = "| Discord | ❌ | Not sent |"
 
             # Replace Storage section using regex
-            import re
             storage_pattern = r"\| Database \| [^|]+ \| [^|]* \|\n\| Discord \| [^|]+ \| [^|]* \|"
             new_storage = f"{db_line}\n{discord_line}"
             content = re.sub(storage_pattern, new_storage, content)
