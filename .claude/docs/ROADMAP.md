@@ -173,10 +173,18 @@ claude-service ───► discord-bot:8000 ───► Discord API
 - [x] DB model et submit tool ready (Phase 2)
 - [x] Intégration end-to-end
 
+### 5.5 Bug Fixes MCP submit_weekly_digest ✅
+- [x] Fix tuple unpacking pour `get_db_connection()` (retourne `tuple[conn, error]`)
+- [x] Ajout `generated_at` dans INSERT statement (NOT NULL constraint)
+- [x] Ajout écriture fichier `digest.json` (requis par main.py `read_digest_file()`)
+- [x] Ajout logging structuré MCP pour opérations weekly
+- [x] Script de test `scripts/seed_test_data.sql` pour semaine 2025-12-15 à 2025-12-21
+
 **Commits:**
 - `feat(weekly): add weekly mission files for ai-news`
 - `feat(weekly): add /analyze-weekly endpoint for weekly digest generation`
 - `feat(weekly): add n8n workflow for weekly digest generation`
+- `fix(mcp): fix submit_weekly_digest DB save and file output`
 
 ---
 
