@@ -217,11 +217,20 @@ claude-service ───► discord-bot:8000 ───► Discord API
 - [x] execution_logger: Discord-aware workflow.md format
 - [x] Unified logs: commands and n8n workflows in same structure
 
+### 6.5 Thematic Mode Transparency ✅
+- [x] Strict protocol for thematic mode in `mission.md`
+- [x] Step 1: Filter DB articles matching theme (REQUIRED)
+- [x] Step 2: Decision based on match count (≥3: DB only, 1-2: mixed, 0: web)
+- [x] Step 3: Transparency in summary about data source
+- [x] New metadata fields: `data_source`, `db_articles_matched`
+- [x] Clear indication in digest summary: "Based on X articles..." or "No matching articles found..."
+
 **Architecture Decision:** Bot calls claude-service directly (no n8n workflow for interactive commands). This is simpler and provides immediate feedback to users.
 
 **Commits:**
 - `feat(bot): add on-demand weekly digest generation with theme support`
 - `feat(bot): add command logging for Discord interactions`
+- `docs(weekly): clarify thematic mode behavior and data source transparency`
 
 ---
 
