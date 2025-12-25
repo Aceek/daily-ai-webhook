@@ -118,7 +118,9 @@ logs/
 |----------|-------------|
 | `/daily` | Dernier daily digest |
 | `/daily date:2024-12-20` | Daily spécifique |
-| `/weekly` | Dernier weekly digest |
+| `/weekly` | Dernier weekly digest (cached) |
+| `/weekly theme:openai` | Génère analyse thématique on-demand |
+| `/weekly week_start:2024-12-16 week_end:2024-12-22` | Analyse période custom |
 
 ## Standards
 

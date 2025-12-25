@@ -188,26 +188,31 @@ claude-service ───► discord-bot:8000 ───► Discord API
 
 ---
 
-## Phase 6: Callback System 🔶
+## Phase 6: On-Demand Generation ✅
 
 ### 6.1 Bot callback endpoint ✅
 - [x] FastAPI intégré dans bot (avec discord.py)
 - [x] POST /callback route
 - [x] Correlation ID tracking (dict in-memory)
 
-**Note:** Endpoint prêt via Phase 4.3, reste à intégrer avec n8n.
+### 6.2 Claude service client ✅
+- [x] `services/claude_client.py` - HTTP client for claude-service
+- [x] `generate_weekly_digest()` async function
+- [x] Error handling with `ClaudeServiceError`
+- [x] Configurable timeout (660s default)
 
-### 6.2 Intégration n8n
-- [ ] Workflow envoie callback en fin
-- [ ] Payload: {correlation_id, status, result}
+### 6.3 /weekly with theme and dates ✅
+- [x] Parse optional args (theme, week_start, week_end)
+- [x] Without args: returns cached digest from DB (existing behavior)
+- [x] With args: generates on-demand via claude-service
+- [x] Defer response, show "Generating..." message
+- [x] Edit message with result or error
+- [x] Smart date defaults (current week for thematic, previous week otherwise)
 
-### 6.3 /weekly --theme (async)
-- [ ] Parse args (theme, from, to)
-- [ ] Génère correlation_id
-- [ ] Répond "⏳ Génération..."
-- [ ] Trigger n8n webhook avec params
-- [ ] Attend callback
-- [ ] Edit message avec résultat
+**Architecture Decision:** Bot calls claude-service directly (no n8n workflow for interactive commands). This is simpler and provides immediate feedback to users.
+
+**Commits:**
+- `feat(bot): add on-demand weekly digest generation with theme support`
 
 ---
 
@@ -244,8 +249,8 @@ Phase 3 (Bot Base)           ██████████  DONE
 Phase 4 (Daily Étendu)       ██████████  DONE (incl. Bot as Hub)
 Phase 4.5 (Reliability)      ██████████  DONE (MCP logging, DB fixes)
 Phase 5 (Weekly)             ██████████  DONE (endpoint + workflow + mission)
+Phase 6 (On-Demand)          ██████████  DONE (/weekly theme + dates)
 ─────────────────────────────────────────────── Feature Complete
-Phase 6 (Callback)           ██░░░░░░░░  PARTIAL (/callback endpoint ready)
 Phase 7 (Polish)             ░░░░░░░░░░  TODO
 ```
 
