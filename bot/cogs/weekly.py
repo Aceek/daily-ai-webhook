@@ -8,6 +8,7 @@ Provides /weekly command to retrieve or generate weekly digests.
 
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 import discord
 from discord import app_commands
@@ -15,6 +16,7 @@ from discord.ext import commands
 
 from config import settings
 from services.claude_client import ClaudeServiceError, generate_weekly_digest
+from services.command_logger import CommandLog, create_command_log, send_command_log
 from services.database import get_latest_weekly_digest
 from services.publisher import build_weekly_embeds
 
@@ -148,6 +150,14 @@ class WeeklyCog(commands.Cog):
             )
             return
 
+        # Create command log
+        command_args: dict[str, Any] = {
+            "theme": theme,
+            "week_start": week_start,
+            "week_end": week_end,
+        }
+        cmd_log = create_command_log(interaction, "/weekly", command_args)
+
         # Send initial status message
         theme_info = f" focused on **{theme}**" if theme else ""
         status_msg = await interaction.followup.send(
@@ -167,6 +177,12 @@ class WeeklyCog(commands.Cog):
 
             digest = result.get("digest")
             if not digest:
+                cmd_log.finish(
+                    success=False,
+                    error="No digest produced",
+                    claude_execution_id=result.get("execution_id"),
+                )
+                await send_command_log(cmd_log)
                 await status_msg.edit(
                     content="Generation completed but no digest was produced. Check logs for details."
                 )
@@ -183,6 +199,14 @@ class WeeklyCog(commands.Cog):
             # Edit the status message with the actual content
             await status_msg.edit(content=None, embeds=embeds)
 
+            # Log success
+            cmd_log.finish(
+                success=True,
+                claude_execution_id=result.get("execution_id"),
+                digest_id=result.get("digest_id"),
+            )
+            await send_command_log(cmd_log)
+
             logger.info(
                 "Generated weekly digest: theme=%s, week=%s to %s, digest_id=%s",
                 theme,
@@ -193,11 +217,15 @@ class WeeklyCog(commands.Cog):
 
         except ClaudeServiceError as e:
             logger.error("Claude service error: %s", e)
+            cmd_log.finish(success=False, error=str(e))
+            await send_command_log(cmd_log)
             await status_msg.edit(
                 content=f"Failed to generate digest: {e}\nPlease try again later."
             )
         except Exception as e:
             logger.error("Unexpected error generating weekly digest: %s", e, exc_info=True)
+            cmd_log.finish(success=False, error=str(e))
+            await send_command_log(cmd_log)
             await status_msg.edit(
                 content="An unexpected error occurred. Please try again later."
             )

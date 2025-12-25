@@ -209,10 +209,19 @@ claude-service ───► discord-bot:8000 ───► Discord API
 - [x] Edit message with result or error
 - [x] Smart date defaults (current week for thematic, previous week otherwise)
 
+### 6.4 Command Logging ✅
+- [x] `bot/services/command_logger.py` - CommandLog dataclass and send function
+- [x] Logs: user, command, args, result, duration, correlation IDs
+- [x] Sends to `/log-workflow` with `source: "discord_command"`
+- [x] claude-service: new Discord fields in WorkflowLogRequest
+- [x] execution_logger: Discord-aware workflow.md format
+- [x] Unified logs: commands and n8n workflows in same structure
+
 **Architecture Decision:** Bot calls claude-service directly (no n8n workflow for interactive commands). This is simpler and provides immediate feedback to users.
 
 **Commits:**
 - `feat(bot): add on-demand weekly digest generation with theme support`
+- `feat(bot): add command logging for Discord interactions`
 
 ---
 

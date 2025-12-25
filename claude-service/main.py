@@ -21,6 +21,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from database import close_db, init_db, seed_missions
 
 from execution_logger import (
+    DiscordChannelLog,
+    DiscordGuildLog,
+    DiscordUserLog,
     ExecutionDirectory,
     ExecutionLogger,
     NodeExecutionLog,
@@ -231,6 +234,27 @@ class NodeExecution(BaseModel):
     error: str | None = None
 
 
+class DiscordUser(BaseModel):
+    """Discord user info for command logging."""
+
+    id: str
+    name: str
+
+
+class DiscordGuild(BaseModel):
+    """Discord guild info for command logging."""
+
+    id: str
+    name: str | None = None
+
+
+class DiscordChannel(BaseModel):
+    """Discord channel info for command logging."""
+
+    id: str
+    name: str | None = None
+
+
 class WorkflowLogRequest(BaseModel):
     """Request body for the /log-workflow endpoint."""
 
@@ -252,6 +276,12 @@ class WorkflowLogRequest(BaseModel):
     digest_id: int | None = None
     db_saved: bool = False
     articles_saved: int = 0
+    # Discord command specific fields (for interactive commands)
+    source: Literal["n8n_workflow", "discord_command"] = "n8n_workflow"
+    discord_user: DiscordUser | None = None
+    discord_guild: DiscordGuild | None = None
+    discord_channel: DiscordChannel | None = None
+    command_args: dict | None = None
 
 
 class WorkflowLogResponse(BaseModel):
@@ -912,19 +942,21 @@ async def analyze_weekly(request: AnalyzeWeeklyRequest) -> AnalyzeWeeklyResponse
 
 @app.post("/log-workflow", response_model=WorkflowLogResponse)
 async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
-    """Log an n8n workflow execution.
+    """Log a workflow or Discord command execution.
 
-    Receives workflow execution data from n8n and saves it as a structured log.
-    This enables correlation between workflow executions and Claude CLI calls.
+    Receives execution data from n8n workflows or Discord bot commands
+    and saves it as a structured log.
 
     Args:
-        request: Request containing workflow execution details.
+        request: Request containing execution details.
 
     Returns:
         Response with success status and log file name.
     """
+    source_type = "command" if request.source == "discord_command" else "workflow"
     logger.info(
-        "Logging workflow execution: %s (status: %s, claude_id: %s)",
+        "Logging %s execution: %s (status: %s, claude_id: %s)",
+        source_type,
         request.workflow_execution_id,
         request.status,
         request.claude_execution_id,
@@ -948,6 +980,27 @@ async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
             for node in request.nodes_executed
         ]
 
+        # Convert Discord info if present
+        discord_user = None
+        discord_guild = None
+        discord_channel = None
+
+        if request.discord_user:
+            discord_user = DiscordUserLog(
+                id=request.discord_user.id,
+                name=request.discord_user.name,
+            )
+        if request.discord_guild:
+            discord_guild = DiscordGuildLog(
+                id=request.discord_guild.id,
+                name=request.discord_guild.name,
+            )
+        if request.discord_channel:
+            discord_channel = DiscordChannelLog(
+                id=request.discord_channel.id,
+                name=request.discord_channel.name,
+            )
+
         # Create WorkflowLog from request
         workflow_log = WorkflowLog(
             workflow_execution_id=request.workflow_execution_id,
@@ -967,6 +1020,12 @@ async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
             digest_id=request.digest_id,
             db_saved=request.db_saved,
             articles_saved=request.articles_saved,
+            # Discord command specific
+            source=request.source,
+            discord_user=discord_user,
+            discord_guild=discord_guild,
+            discord_channel=discord_channel,
+            command_args=request.command_args,
         )
 
         # Save the workflow log (will find matching execution directory if available)

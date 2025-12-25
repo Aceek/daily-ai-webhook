@@ -61,8 +61,29 @@ class NodeExecutionLog(BaseModel):
     error: str | None = None
 
 
+class DiscordUserLog(BaseModel):
+    """Discord user info for logging."""
+
+    id: str
+    name: str
+
+
+class DiscordGuildLog(BaseModel):
+    """Discord guild info for logging."""
+
+    id: str
+    name: str | None = None
+
+
+class DiscordChannelLog(BaseModel):
+    """Discord channel info for logging."""
+
+    id: str
+    name: str | None = None
+
+
 class WorkflowLog(BaseModel):
-    """Complete log data for an n8n workflow execution."""
+    """Complete log data for an n8n workflow or Discord command execution."""
 
     workflow_execution_id: str
     workflow_name: str = "Unknown Workflow"
@@ -83,6 +104,12 @@ class WorkflowLog(BaseModel):
     digest_id: int | None = None
     db_saved: bool = False
     articles_saved: int = 0
+    # Discord command specific fields
+    source: str = "n8n_workflow"  # "n8n_workflow" or "discord_command"
+    discord_user: DiscordUserLog | None = None
+    discord_guild: DiscordGuildLog | None = None
+    discord_channel: DiscordChannelLog | None = None
+    command_args: dict | None = None
 
 
 class ExecutionLog(BaseModel):
@@ -496,7 +523,7 @@ class WorkflowLogger:
         status_emoji = "✅" if log.status == "success" else "❌"
         duration_str = f"{log.duration_seconds:.1f}s"
 
-        nodes_lines = ["| Node | Status |", "|------|--------|"]
+        nodes_lines = ["| Step | Status |", "|------|--------|"]
         for node in log.nodes_executed:
             s = "✅" if node.status == "success" else "❌"
             nodes_lines.append(f"| {node.name} | {s} |")
@@ -510,13 +537,31 @@ class WorkflowLogger:
         discord_status = "✅ Sent" if log.discord_sent else "❌ Not sent"
         discord_details = f"msg={log.discord_message_id}" if log.discord_message_id else ""
 
-        md = f"""# Workflow Log
+        # Source-specific header
+        if log.source == "discord_command":
+            source_type = "Discord Command"
+            user_info = ""
+            if log.discord_user:
+                user_info = f"\n**User:** {log.discord_user.name} (`{log.discord_user.id}`)"
+            if log.discord_guild:
+                guild_name = log.discord_guild.name or log.discord_guild.id
+                user_info += f"\n**Server:** {guild_name}"
+            if log.discord_channel:
+                channel_name = log.discord_channel.name or log.discord_channel.id
+                user_info += f"\n**Channel:** #{channel_name}"
+            if log.command_args:
+                args_str = ", ".join(f"{k}={v}" for k, v in log.command_args.items() if v is not None)
+                user_info += f"\n**Args:** {args_str}" if args_str else ""
+        else:
+            source_type = "n8n Workflow"
+            user_info = ""
+
+        md = f"""# {source_type} Log
 
 **Status:** {status_emoji} {log.status.upper()}
-**Workflow ID:** `{log.workflow_execution_id}`
+**ID:** `{log.workflow_execution_id}`
 **Claude ID:** `{log.claude_execution_id or 'N/A'}`
-**Duration:** {duration_str}
-**Articles:** {log.articles_count}
+**Duration:** {duration_str}{user_info}
 
 ## Storage
 
@@ -525,7 +570,7 @@ class WorkflowLogger:
 | Database | {db_status} | {db_details} |
 | Discord | {discord_status} | {discord_details} |
 
-## Nodes
+## Pipeline
 
 {nodes_table}
 """
