@@ -51,12 +51,21 @@ submit_digest(
 ## Database Query Tools
 
 Ces outils permettent d'interroger la base de données des articles.
-Utilise-les principalement pour les weekly digests.
 
 ### get_categories
 
 Récupère les catégories existantes pour une mission.
-**Utilise cet outil au début de l'analyse** pour réutiliser les catégories existantes.
+
+**DAILY** - Classification des nouveaux articles:
+- Appeler AVANT de classifier les articles RSS
+- But: Réutiliser les catégories existantes, éviter les doublons
+- ❌ Sans: Claude crée "LLM Updates" alors que "LLM Models" existe
+- ✅ Avec: Claude voit "LLM Models" et l'utilise
+
+**WEEKLY** - Analyse uniquement:
+- Appeler pour comprendre la distribution des catégories
+- But: Analyse (les articles sont déjà classifiés en DB)
+- Pas de création de catégories dans ce workflow
 
 ```
 get_categories(
@@ -193,23 +202,25 @@ submit_weekly_digest(
 
 ### Daily Digest
 
-1. Analyse les articles fournis
-2. Effectue recherches web complémentaires
-3. Écris le document de recherche (Write)
-4. Appelle `submit_digest` UNE SEULE FOIS
+1. `get_categories()` - récupérer catégories pour classification
+2. Analyse les articles RSS en réutilisant les catégories existantes
+3. Effectue recherches web complémentaires
+4. Écris le document de recherche (Write)
+5. Appelle `submit_digest` UNE SEULE FOIS → sauvegarde articles + catégories
 
 ### Weekly Digest
 
 1. `get_article_stats()` - comprendre le volume
-2. `get_categories()` - voir les catégories existantes
-3. `get_articles()` - récupérer les articles pertinents
+2. `get_categories()` - voir la distribution (analyse, pas classification)
+3. `get_articles()` - récupérer les articles de la période
 4. Analyse les tendances et patterns
-5. Appelle `submit_weekly_digest` UNE SEULE FOIS
+5. Appelle `submit_weekly_digest` UNE SEULE FOIS → sauvegarde digest uniquement
 
 ---
 
 ## Erreurs Courantes
 
+- **[Daily]** Ne pas appeler `get_categories` avant de classifier (crée des doublons)
 - Oublier un champ requis dans les items
 - Ne pas appeler submit_digest (le workflow échoue)
 - Appeler submit plusieurs fois (seul le dernier compte)

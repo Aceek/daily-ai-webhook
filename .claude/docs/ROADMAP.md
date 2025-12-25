@@ -236,10 +236,11 @@ claude-service ───► discord-bot:8000 ───► Discord API
 
 ## Phase 7: Polish & Extensions 🔲
 
-### 7.1 Catégories intelligentes
-- [ ] Claude reçoit catégories existantes avant chaque analyse
-- [ ] Test: nouvelles catégories créées correctement
-- [ ] Test: réutilisation catégories existantes
+### 7.1 Catégories intelligentes ✅
+- [x] Claude reçoit catégories existantes avant chaque analyse (DAILY + WEEKLY)
+- [x] Instructions `get_categories` obligatoire dans config/CLAUDE.md
+- [x] Règles de réutilisation dans mcp-usage.md
+- [x] Exemples concrets de réutilisation vs création
 
 ### 7.2 Commande /ask (futur)
 - [ ] Question libre sur articles DB
@@ -269,7 +270,7 @@ Phase 4.5 (Reliability)      ██████████  DONE (MCP logging, 
 Phase 5 (Weekly)             ██████████  DONE (endpoint + workflow + mission)
 Phase 6 (On-Demand)          ██████████  DONE (/weekly theme + dates)
 ─────────────────────────────────────────────── Feature Complete
-Phase 7 (Polish)             ░░░░░░░░░░  TODO
+Phase 7 (Polish)             ██░░░░░░░░  IN PROGRESS (7.1 done)
 ```
 
 ## MVP Fonctionnel
