@@ -34,6 +34,21 @@ Lis les paramètres fournis pour déterminer le type:
 6. `Read("/app/missions/{mission}/editorial-guide.md")` - Guide éditorial
 7. `Read("/app/missions/{mission}/output-schema.md")` - Format de sortie
 
+### Étape 1.5 : Récupération des catégories existantes (OBLIGATOIRE)
+
+**AVANT de classifier les articles**, récupère les catégories existantes:
+
+```
+get_categories(mission_id="{mission}")
+```
+
+**Règles de classification:**
+- **Réutilise** une catégorie existante si le sujet correspond (même partiellement)
+- **Ne crée** une nouvelle catégorie que si aucune existante ne correspond
+- Exemples de réutilisation:
+  - Article sur GPT-5 → catégorie existante "LLM Models" (pas "New LLMs")
+  - Article sur loi EU AI → catégorie existante "AI Regulation" (pas "EU AI Laws")
+
 ### Étape 2 : Exécution Daily
 1. Analyse les articles selon les règles de sélection
 2. Effectue les recherches web requises (WebSearch) - minimum 3
@@ -97,7 +112,7 @@ get_articles(mission_id="{mission}", date_from="{week_start}", date_to="{week_en
 | `Write` | Écrire le document de recherche | ✓ | ✓ |
 | `Task` | Déléguer aux sub-agents | ✓ | ✗ |
 | `get_article_stats` | Stats articles en DB (MCP) | ✗ | ✓ |
-| `get_categories` | Catégories en DB (MCP) | ✗ | ✓ |
+| `get_categories` | Catégories existantes (MCP) | ✓ | ✓ |
 | `get_articles` | Articles en DB (MCP) | ✗ | ✓ |
 | `submit_digest` | Soumettre daily (MCP) | ✓ | ✗ |
 | `submit_weekly_digest` | Soumettre weekly (MCP) | ✗ | ✓ |
@@ -130,16 +145,18 @@ get_articles(mission_id="{mission}", date_from="{week_start}", date_to="{week_en
 3. **NE JAMAIS** inclure une news non vérifiée sans le mentionner
 
 ### Daily spécifique
-4. **TOUJOURS** effectuer minimum 3 recherches web (WebSearch)
-5. **TOUJOURS** écrire le document de recherche AVANT de soumettre
-6. **TOUJOURS** utiliser `submit_digest` pour le résultat final
-7. **LIMITER** les sub-agents (max 2 fact-checks, max 2 deep-dives)
+4. **TOUJOURS** appeler `get_categories` AVANT de classifier les articles
+5. **TOUJOURS** réutiliser les catégories existantes quand le sujet correspond
+6. **TOUJOURS** effectuer minimum 3 recherches web (WebSearch)
+7. **TOUJOURS** écrire le document de recherche AVANT de soumettre
+8. **TOUJOURS** utiliser `submit_digest` pour le résultat final
+9. **LIMITER** les sub-agents (max 2 fact-checks, max 2 deep-dives)
 
 ### Weekly spécifique
-8. **TOUJOURS** utiliser les MCP DB tools pour récupérer les données
-9. **TOUJOURS** identifier au moins 2 tendances
-10. **TOUJOURS** inclure au moins 3 top stories
-11. **TOUJOURS** utiliser `submit_weekly_digest` (PAS submit_digest!)
+10. **TOUJOURS** utiliser les MCP DB tools pour récupérer les données
+11. **TOUJOURS** identifier au moins 2 tendances
+12. **TOUJOURS** inclure au moins 3 top stories
+13. **TOUJOURS** utiliser `submit_weekly_digest` (PAS submit_digest!)
 
 ## Exemples de démarrage
 
@@ -162,10 +179,14 @@ Je suis le protocole DAILY...
 6. Read("/app/missions/ai-news/editorial-guide.md") ✓
 7. Read("/app/missions/ai-news/output-schema.md") ✓
 
-Fichiers chargés. Je commence l'analyse daily...
+Fichiers chargés. Je récupère les catégories existantes...
+→ get_categories("ai-news")
+  Catégories existantes: LLM Models, AI Regulation, Open Source, Research Papers
+
+Je commence l'analyse daily en réutilisant ces catégories...
 → WebSearch (min 3)
 → Write research.md
-→ submit_digest()
+→ submit_digest()  ← articles classés dans catégories existantes
 ```
 
 ### Exemple WEEKLY
