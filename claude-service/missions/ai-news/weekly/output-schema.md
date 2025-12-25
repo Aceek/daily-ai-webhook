@@ -108,6 +108,18 @@ Pour chaque catégorie:
 | `articles_analyzed` | integer | Oui | Total articles traités |
 | `web_searches` | integer | Non | Recherches web effectuées |
 | `theme` | string/null | Non | Thème si mode thématique |
+| `data_source` | string | Thématique | Source des données (voir ci-dessous) |
+| `db_articles_matched` | integer | Thématique | Nombre d'articles DB matchant le thème |
+
+### data_source (mode thématique uniquement)
+
+| Valeur | Signification | Quand l'utiliser |
+|--------|---------------|------------------|
+| `"database"` | Données uniquement de la DB | ≥3 articles DB matchent le thème |
+| `"mixed"` | DB + recherche web | 1-2 articles DB matchent |
+| `"web_search"` | Recherche web uniquement | 0 articles DB matchent |
+
+**Important:** Si `theme` est fourni, `data_source` et `db_articles_matched` sont OBLIGATOIRES.
 
 ## Direction des tendances
 
@@ -219,7 +231,27 @@ Pour chaque catégorie:
     "week_end": "2024-12-22",
     "articles_analyzed": 156,
     "web_searches": 2,
-    "theme": null
+    "theme": null,
+    "data_source": null,
+    "db_articles_matched": null
+  }
+}
+```
+
+### Exemple avec thème (mode thématique)
+
+```json
+{
+  "metadata": {
+    "execution_id": "weekly-2024-12-22-xyz789",
+    "mission_id": "ai-news",
+    "week_start": "2024-12-16",
+    "week_end": "2024-12-22",
+    "articles_analyzed": 45,
+    "web_searches": 3,
+    "theme": "Open Source",
+    "data_source": "mixed",
+    "db_articles_matched": 2
   }
 }
 ```

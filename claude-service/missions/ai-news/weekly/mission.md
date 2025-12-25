@@ -83,10 +83,43 @@ theme: null | "specific topic" (optionnel)
 
 ## Mode thématique
 
-Si un `theme` est fourni:
-- Filtrer les articles pertinents au thème
-- Focaliser l'analyse sur ce sujet spécifique
-- Marquer `is_standard: false` dans la soumission
+Si un `theme` est fourni, suivre ce protocole strict:
+
+### Étape 1: Filtrage DB (OBLIGATOIRE)
+
+Après récupération des articles via `get_articles`:
+- Analyser TOUS les articles récupérés de la DB
+- Identifier ceux qui matchent le thème (dans titre, description, ou source)
+- Compter le nombre d'articles matchant: `db_articles_matched`
+
+### Étape 2: Décision selon résultats DB
+
+| Articles matchant | Action | data_source |
+|-------------------|--------|-------------|
+| ≥3 articles | Utiliser uniquement les articles DB | `"database"` |
+| 1-2 articles | Utiliser DB + WebSearch pour enrichir | `"mixed"` |
+| 0 articles | WebSearch uniquement | `"web_search"` |
+
+### Étape 3: Transparence (OBLIGATOIRE)
+
+Dans le `summary`, TOUJOURS commencer par indiquer la source des données:
+
+- Si `data_source: "database"`:
+  > "Based on X articles from our database covering [theme]..."
+
+- Si `data_source: "mixed"`:
+  > "Based on X database articles on [theme], supplemented with web research for additional context..."
+
+- Si `data_source: "web_search"`:
+  > "No matching articles found in database for theme '[theme]' during this period. This analysis is based on web research to provide relevant insights..."
+
+### Règles du mode thématique
+
+1. TOUJOURS commencer par analyser les articles DB
+2. TOUJOURS documenter le nombre d'articles DB matchant
+3. TOUJOURS indiquer clairement la source dans le summary
+4. Marquer `is_standard: false` dans la soumission
+5. Remplir `metadata.data_source` et `metadata.db_articles_matched`
 
 ## Règles absolues
 
