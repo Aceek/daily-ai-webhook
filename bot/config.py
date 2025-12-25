@@ -24,5 +24,9 @@ class Settings:
     # Default mission
     default_mission: str = os.getenv("DEFAULT_MISSION", "ai-news")
 
+    # Claude service (for on-demand generation)
+    claude_service_url: str = os.getenv("CLAUDE_SERVICE_URL", "http://claude-service:8080")
+    claude_service_timeout: int = int(os.getenv("CLAUDE_SERVICE_TIMEOUT", "660"))
+
 
 settings = Settings()
