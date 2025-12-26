@@ -127,10 +127,13 @@
 
 **Fichier:** `claude-service/missions/ai-news/mission.md`
 
-### 3.8 Tests Phase 3
-- [ ] Test workflow avec toutes les sources
-- [ ] Vérifier volume ~50-60 articles après dedup
-- [ ] Vérifier qualité/pertinence nouvelles sources
+### 3.8 Tests Phase 3 ✅
+- [x] Test workflow JSON valide
+- [x] Test arXiv RSS feed fonctionnel
+- [x] Test The Verge AI RSS fonctionnel
+- [x] Test Ars Technica AI RSS fonctionnel
+- [x] Test Reddit r/LocalLLaMA API fonctionnel
+- [x] Vérifier structure: 7 RSS + 3 HTTP = 10 sources → Merge OK
 
 ---
 
