@@ -54,7 +54,7 @@ class AINewsBot(commands.Bot):
         await init_db()
 
         # Load cogs
-        cogs = ["cogs.daily", "cogs.weekly"]
+        cogs = ["cogs.daily", "cogs.weekly", "cogs.admin"]
         for cog in cogs:
             try:
                 await self.load_extension(cog)

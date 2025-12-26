@@ -189,3 +189,66 @@ async def mark_weekly_digest_posted(digest_id: int) -> None:
             "UPDATE weekly_digests SET posted_to_discord = true WHERE id = $1",
             digest_id,
         )
+
+
+async def get_database_stats() -> dict[str, Any] | None:
+    """Get database statistics for admin command.
+
+    Returns:
+        Dict with counts and dates, or None if DB unavailable
+    """
+    if not _pool:
+        return None
+
+    try:
+        async with _pool.acquire() as conn:
+            # Get counts
+            articles_count = await conn.fetchval("SELECT COUNT(*) FROM articles")
+            categories_count = await conn.fetchval("SELECT COUNT(*) FROM categories")
+            daily_count = await conn.fetchval("SELECT COUNT(*) FROM daily_digests")
+            weekly_count = await conn.fetchval("SELECT COUNT(*) FROM weekly_digests")
+
+            # Get latest dates
+            last_daily = await conn.fetchval(
+                "SELECT date FROM daily_digests ORDER BY date DESC LIMIT 1"
+            )
+            last_weekly = await conn.fetchval(
+                "SELECT week_end FROM weekly_digests ORDER BY week_end DESC LIMIT 1"
+            )
+
+            # Get articles from last 7 days
+            articles_last_week = await conn.fetchval(
+                "SELECT COUNT(*) FROM articles WHERE created_at >= NOW() - INTERVAL '7 days'"
+            )
+
+            return {
+                "articles": articles_count,
+                "categories": categories_count,
+                "daily_digests": daily_count,
+                "weekly_digests": weekly_count,
+                "last_daily_date": last_daily,
+                "last_weekly_date": last_weekly,
+                "articles_last_7_days": articles_last_week,
+            }
+    except Exception as e:
+        logger.error("Error fetching database stats: %s", e)
+        return None
+
+
+async def check_database_health() -> tuple[bool, str]:
+    """Check if database is healthy.
+
+    Returns:
+        Tuple of (is_healthy, message)
+    """
+    if not _pool:
+        return False, "No connection pool"
+
+    try:
+        async with _pool.acquire() as conn:
+            result = await conn.fetchval("SELECT 1")
+            if result == 1:
+                return True, "Connected"
+            return False, "Unexpected response"
+    except Exception as e:
+        return False, str(e)
