@@ -79,9 +79,14 @@ get_recent_headlines(mission_id="{mission}", days=3)
 
 **IMPORTANT:** Tu dois classifier TOUS les articles analysés en deux groupes:
 
-**Selected** (4-8 articles pour le digest):
+**Selected** (nombre adapté au cycle d'actualités):
 - Articles retenus pour publication Discord
 - Format complet avec summary, emoji, importance, etc.
+- **Flexibilité:**
+  - Jour calme: 1-3 articles suffisent (pas de remplissage)
+  - Jour normal: 4-8 articles
+  - Breaking news majeur: 10+ si justifié
+- **Critère:** Chaque article doit apporter une valeur distincte
 
 **Excluded** (tous les autres articles):
 - Articles NON retenus mais archivés pour référence
