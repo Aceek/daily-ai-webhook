@@ -392,6 +392,72 @@ def get_article_stats(
         conn.close()
 
 
+@mcp.tool()
+def get_recent_headlines(
+    mission_id: str,
+    days: int = 3,
+) -> dict:
+    """
+    Get recent headlines to avoid duplicate coverage.
+
+    Call this tool BEFORE analyzing articles to check what topics
+    have already been covered in recent days. Avoid selecting articles
+    that cover the same topic unless there's a significant update.
+
+    Args:
+        mission_id: The mission ID (e.g., "ai-news")
+        days: Number of days to look back (default 3, max 7)
+
+    Returns:
+        Dict with list of recent headlines (title, url, date, category)
+    """
+    conn, db_error = get_db_connection()
+    if not conn:
+        return {"status": "error", "message": f"Database not available: {db_error}"}
+
+    # Cap days at 7
+    days = min(days, 7)
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.title, a.url, DATE(a.created_at) as date, c.name as category
+                FROM articles a
+                LEFT JOIN categories c ON a.category_id = c.id
+                WHERE a.mission_id = %s
+                  AND a.status = 'selected'
+                  AND a.created_at >= NOW() - INTERVAL '%s days'
+                ORDER BY a.created_at DESC
+                LIMIT 50
+                """,
+                (mission_id, days),
+            )
+            rows = cur.fetchall()
+
+            headlines = [
+                {
+                    "title": row["title"],
+                    "url": row["url"],
+                    "date": str(row["date"]),
+                    "category": row["category"],
+                }
+                for row in rows
+            ]
+
+            return {
+                "status": "success",
+                "mission_id": mission_id,
+                "days": days,
+                "headlines": headlines,
+                "count": len(headlines),
+            }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        conn.close()
+
+
 # =============================================================================
 # Submit Tools
 # =============================================================================
