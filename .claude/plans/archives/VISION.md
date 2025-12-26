@@ -1,517 +1,198 @@
-# AI News Bot - Document de Vision
+# Vision: AI News Bot v2
 
-> **Version:** 1.0
-> **Date:** 21 décembre 2024
-> **Statut:** En cours de définition
+## Overview
 
----
+Bot Discord interactif + automations n8n + Claude agentic + PostgreSQL.
 
-## 1. Présentation du Projet
-
-### 1.1 Objectif Principal
-Créer un système automatisé qui collecte, analyse et synthétise les actualités AI/ML quotidiennement, puis les publie sur un serveur Discord sous forme de résumé éditorialisé.
-
-### 1.2 Proposition de Valeur
-- **Gain de temps** : Plus besoin de parcourir 10+ sources manuellement
-- **Qualité éditoriale** : Claude Code trie et priorise l'information, pas juste une agrégation brute
-- **Personnalisable** : Règles et format modifiables sans toucher au code
-- **Évolutif** : Architecture pensée pour ajouter des features (bot interactif, multi-thématiques)
-
-### 1.3 Public Cible
-- Serveur Discord personnel ou communautaire
-- Personnes souhaitant suivre l'actualité AI sans y passer des heures
-
----
-
-## 2. Fonctionnalités
-
-### 2.1 Phase 1 - MVP (Minimum Viable Product)
-
-| Fonctionnalité | Description | Priorité |
-|----------------|-------------|----------|
-| Collecte automatique | Récupération des articles via RSS, Reddit, Hacker News | Haute |
-| Analyse intelligente | Claude Code évalue la pertinence selon des règles configurables | Haute |
-| Recherche complémentaire | Claude peut effectuer des recherches web si les sources sont insuffisantes | Haute |
-| Résumé quotidien | Publication formatée sur Discord à heure configurable | Haute |
-| Configuration éditoriale | Fichiers .md pour définir les règles sans coder | Haute |
-
-### 2.2 Phase 2 - Bot Interactif
-
-| Fonctionnalité | Description | Priorité |
-|----------------|-------------|----------|
-| `/news now` | Déclencher un résumé immédiat à la demande | Moyenne |
-| `/news topic <sujet>` | Changer temporairement le sujet (crypto, gaming, etc.) | Moyenne |
-| `/news sources` | Afficher la liste des sources actives | Basse |
-| `/subscribe` | Notifications personnalisées par utilisateur | Basse |
-
-### 2.3 Phase 3 - Extensions Futures
-
-| Fonctionnalité | Description | Priorité |
-|----------------|-------------|----------|
-| Twitter/X | Intégration des comptes influents AI | À définir |
-| Multi-thématiques | Plusieurs channels pour différents sujets | À définir |
-| Dashboard web | Interface pour gérer sources et règles | À définir |
-| Historique searchable | Retrouver les news passées | À définir |
-
----
-
-## 3. Architecture Technique
-
-### 3.1 Vue d'Ensemble
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            INFRASTRUCTURE                                │
-│                                                                          │
-│   ┌──────────────┐     ┌──────────────┐     ┌──────────────────────┐    │
-│   │   SOURCES    │     │     n8n      │     │     Claude Code      │    │
-│   │              │     │              │     │                      │    │
-│   │ • RSS Feeds  │────▶│ • Scheduler  │────▶│ • Analyse articles   │    │
-│   │ • Reddit API │     │ • Collecte   │     │ • Recherche web      │    │
-│   │ • HN API     │     │ • Merge      │     │ • Rédaction résumé   │    │
-│   └──────────────┘     └──────────────┘     └──────────┬───────────┘    │
-│                                                         │                │
-│                              ┌───────────────────────────┘                │
-│                              │                                           │
-│                              ▼                                           │
-│   ┌──────────────────────────────────────┐     ┌────────────────────┐   │
-│   │         CONFIGURATION                 │     │      DISCORD       │   │
-│   │                                       │     │                    │   │
-│   │ • rules.md (critères sélection)      │     │ • Webhook (MVP)    │   │
-│   │ • sources.md (liste feeds)           │     │ • Bot (Phase 2)    │   │
-│   │ • editorial-guide.md (format/ton)    │     │                    │   │
-│   └──────────────────────────────────────┘     └────────────────────┘   │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+discord-bot ←→ n8n ←→ claude-service ←→ PostgreSQL
+     ↑                      ↑
+     └──── callback ────────┘
 ```
 
-### 3.2 Stack Technologique
+### Containers (docker-compose)
 
-| Couche | Technologie | Justification |
-|--------|-------------|---------------|
-| **Orchestration** | n8n (Docker) | Interface visuelle, scheduling intégré, gratuit en self-hosted |
-| **Intelligence** | Claude Code CLI | Abonnement existant, capacité web search, puissant |
-| **Messaging** | Discord Webhook → Bot | Webhook pour MVP (simple), Bot pour interactions |
-| **Configuration** | Fichiers Markdown | Modifiables sans code, versionnables avec Git |
-| **Hébergement** | Docker local | Gratuit, contrôle total, pas de dépendance cloud |
+| Service | Tech | Rôle |
+|---------|------|------|
+| postgres | PostgreSQL 16 | Stockage persistant |
+| n8n | n8n 2.0.3 | Crons, RSS, orchestration workflows |
+| claude-service | FastAPI + Claude CLI | Analyse agentic, MCP tools |
+| discord-bot | discord.py | Commandes, publication, callback endpoint |
 
-### 3.3 Structure des Fichiers
+## Base de Données
 
-```
-daily-ai-webhook/
-│
-├── docker-compose.yml              # Configuration Docker (n8n)
-├── .env                            # Variables d'environnement
-│
-├── n8n-data/                       # Volume persistant n8n
-│   └── .n8n/                       # Données n8n (auto-généré)
-│
-├── config/                         # Configuration éditoriale
-│   ├── rules.md                    # Critères de sélection des news
-│   ├── sources.md                  # Liste des sources (RSS, Reddit, etc.)
-│   └── editorial-guide.md          # Guide de style et format
-│
-├── scripts/                        # Scripts utilitaires
-│   └── summarize.sh                # Wrapper pour appeler Claude Code
-│
-├── workflows/                      # Exports des workflows n8n
-│   └── daily-news-workflow.json    # Workflow principal (backup)
-│
-├── bot/                            # Bot Discord (Phase 2)
-│   ├── bot.py                      # Code du bot
-│   ├── requirements.txt            # Dépendances Python
-│   └── Dockerfile                  # Container pour le bot
-│
-├── docs/                           # Documentation
-│   └── VISION.md                   # Ce document
-│
-└── README.md                       # Documentation du projet
+### Schéma
+
+```sql
+missions (id PK string, name, description, created_at)
+
+categories (id PK, mission_id FK, name, created_at)
+  UNIQUE(mission_id, name)
+
+articles (id PK, mission_id FK, category_id FK, title, url, source,
+          description, pub_date, digest_id FK nullable, created_at)
+
+daily_digests (id PK, mission_id FK, date UNIQUE/mission, content JSON,
+               generated_at, posted_to_discord bool)
+
+weekly_digests (id PK, mission_id FK, week_start, week_end, params JSON,
+                content JSON, generated_at, is_standard bool)
 ```
 
----
+### Catégories Dynamiques
 
-## 4. Sources de Données
+- Liées à mission_id (multi-mission ready)
+- Claude reçoit catégories existantes via MCP avant analyse
+- Réutilise existantes, crée nouvelles si nécessaire
+- `get_or_create(mission, name)` côté DB
 
-### 4.1 Sources Phase 1 (Gratuites)
+## Discord Bot
 
-#### Flux RSS
-| Source | URL Feed | Type de contenu |
-|--------|----------|-----------------|
-| Anthropic Blog | anthropic.com/feed | Annonces officielles, recherche |
-| OpenAI Blog | openai.com/blog/rss | Annonces, releases |
-| Google AI Blog | blog.google/technology/ai/rss | Recherche, produits |
-| Hugging Face Blog | huggingface.co/blog/feed.xml | Open source, modèles |
-| MIT Tech Review AI | technologyreview.com/feed (filtré AI) | Analyses, tendances |
-| The Batch | deeplearning.ai/the-batch/feed | Newsletter hebdo |
+### Commandes
 
-#### APIs Gratuites
-| Source | Endpoint | Limite |
-|--------|----------|--------|
-| Reddit | `reddit.com/r/{subreddit}/hot.json` | ~60 req/min sans auth |
-| Hacker News | `hn.algolia.com/api/v1/search?query=AI` | Illimité |
+| Commande | Action | Async |
+|----------|--------|-------|
+| `/daily` | Retourne dernier daily (DB cache) | Non |
+| `/weekly` | Retourne dernier weekly standard (DB cache) | Non |
+| `/weekly --theme X` | Génère analyse custom | Oui |
+| `/weekly --from --to` | Analyse période custom | Oui |
+| `/ask "question"` | Question libre sur DB (futur) | Oui |
 
-#### Subreddits Ciblés
-- r/MachineLearning - Recherche et discussions techniques
-- r/LocalLLaMA - LLMs open source, fine-tuning
-- r/artificial - News générales AI
-- r/singularity - Tendances long-terme
+### Publication Auto
 
-### 4.2 Sources Phase 3 (Optionnelles)
+- Chan dédié #daily-news pour daily
+- Chan dédié #weekly-digest pour weekly
+- Bot poste proactivement via crons n8n
 
-| Source | Difficulté | Coût |
-|--------|------------|------|
-| Twitter/X | Élevée (API restrictive) | $100+/mois ou alternatives |
-| NewsAPI | Faible | 100 req/jour gratuit |
-| Arxiv | Faible | Gratuit (API officielle) |
-
----
-
-## 5. Configuration Éditoriale
-
-### 5.1 rules.md - Critères de Sélection
-
-```markdown
-# Règles de Sélection des News
-
-## Priorité Haute (À inclure systématiquement)
-- Annonces officielles des labs majeurs (Anthropic, OpenAI, Google, Meta, Mistral)
-- Nouvelles releases de modèles (GPT-x, Claude x, Gemini, Llama, etc.)
-- Papers avec impact significatif (nouveaux benchmarks battus, nouvelles architectures)
-- Régulations et législations AI (EU AI Act, décisions gouvernementales)
-- Acquisitions et levées de fonds majeures (>$100M)
-
-## Priorité Moyenne (Inclure si pertinent)
-- Tutoriels et guides techniques populaires (>500 upvotes Reddit)
-- Nouvelles fonctionnalités d'outils existants
-- Interviews de chercheurs/leaders du domaine
-- Analyses de tendances par des sources réputées
-
-## Priorité Basse (Inclure si espace disponible)
-- Projets open source intéressants
-- Discussions communautaires notables
-- Événements et conférences à venir
-
-## À Exclure
-- Contenus purement promotionnels sans substance
-- Rumeurs non sourcées
-- Articles clickbait sans information concrète
-- Doublons (même info de sources différentes)
-- Contenus datant de plus de 48h
-
-## Recherche Web Complémentaire
-Déclencher une recherche web si:
-- Moins de 5 articles pertinents après filtrage
-- Une actualité majeure est mentionnée mais manque de détails
-- Besoin de contexte sur une annonce importante
-```
-
-### 5.2 editorial-guide.md - Guide de Style
-
-```markdown
-# Guide Éditorial
-
-## Langue
-- Anglais
-
-## Ton
-- Professionnel et accessible
-- Factuel, pas d'opinions personnelles
-- Concis, aller à l'essentiel
-
-## Structure du Résumé
-
-### Format Standard
-🔥 **TOP 3 HEADLINES**
-[Les 3 actualités les plus importantes]
-
-📊 **INDUSTRY & PRODUCTS**
-[Annonces produits, business news - si pertinent]
-
-🔬 **RESEARCH SPOTLIGHT**
-[Papers ou avancées techniques notables - si pertinent]
-
-💡 **WORTH WATCHING**
-[Tendances émergentes, à surveiller - si pertinent]
-
-### Règles de Formatage
-- Chaque item: 1-2 phrases maximum
-- Inclure le nom de la source entre parenthèses
-- Utiliser des liens quand disponibles
-- Maximum 2000 caractères total
-
-## Exemples
-
-### Bon ✓
-"🔥 OpenAI releases GPT-5 with native multimodal capabilities and 1M context window. Available today for Plus subscribers. (OpenAI Blog)"
-
-### Mauvais ✗
-"OpenAI just dropped something HUGE! GPT-5 is here and it's absolutely insane, you won't believe what it can do..."
-```
-
-### 5.3 sources.md - Liste des Sources
-
-```markdown
-# Sources Actives
-
-## RSS Feeds
-- https://www.anthropic.com/feed.xml
-- https://openai.com/blog/rss/
-- https://blog.google/technology/ai/rss/
-- https://huggingface.co/blog/feed.xml
-- https://www.technologyreview.com/topic/artificial-intelligence/feed
-
-## Reddit (JSON API)
-- r/MachineLearning - hot, limit 25
-- r/LocalLLaMA - hot, limit 15
-- r/artificial - hot, limit 10
-
-## Hacker News
-- Query: "artificial intelligence OR machine learning OR LLM OR GPT"
-- Filter: last 24 hours
-- Limit: 20 stories
-
-## Notes
-- Ajouter/retirer des sources en modifiant ce fichier
-- Les sources RSS sont prioritaires (plus fiables)
-- Reddit/HN pour l'info "chaude" et discussions
-```
-
----
-
-## 6. Workflow Détaillé
-
-### 6.1 Flux d'Exécution Quotidien
+### Callback Endpoint
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ 08:00 - DÉCLENCHEMENT                                               │
-│ └── Cron Trigger n8n                                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ 08:01 - COLLECTE (parallèle)                                        │
-│ ├── RSS Feed Node ×6 sources                                        │
-│ ├── HTTP Request: Reddit (3 subreddits)                            │
-│ └── HTTP Request: Hacker News API                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ 08:02 - PRÉTRAITEMENT                                               │
-│ ├── Merge: Combiner tous les résultats                             │
-│ ├── Dedup: Supprimer doublons (par URL/titre)                      │
-│ └── Filter: Garder uniquement dernières 24h                        │
-├─────────────────────────────────────────────────────────────────────┤
-│ 08:03 - FORMATAGE                                                   │
-│ └── Construire le payload texte pour Claude                        │
-├─────────────────────────────────────────────────────────────────────┤
-│ 08:04 - ANALYSE CLAUDE CODE                                         │
-│ ├── Lecture des fichiers config (rules.md, editorial-guide.md)     │
-│ ├── Évaluation de la pertinence                                    │
-│ ├── Recherche web complémentaire (si nécessaire)                   │
-│ └── Génération du résumé formaté                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ 08:06 - PUBLICATION                                                 │
-│ └── HTTP Request: Discord Webhook                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ 08:06 - LOGGING                                                     │
-│ └── Enregistrement du statut dans n8n                              │
-└─────────────────────────────────────────────────────────────────────┘
+POST /callback
+Body: {correlation_id, result, status}
 ```
 
-### 6.2 Script d'Appel Claude Code
+Bot expose HTTP pour recevoir résultats async de n8n/claude-service.
 
-```bash
-#!/bin/bash
-# scripts/summarize.sh
+## Workflows n8n
 
-ARTICLES_FILE=$1
-CONFIG_DIR="./config"
+### Daily (existant, étendu)
 
-# Construire le prompt avec la documentation
-claude -p "
-You are an AI/ML news editor.
-
-=== SELECTION RULES ===
-$(cat $CONFIG_DIR/rules.md)
-
-=== EDITORIAL GUIDELINES ===
-$(cat $CONFIG_DIR/editorial-guide.md)
-
-=== ARTICLES TO ANALYZE ===
-$(cat $ARTICLES_FILE)
-
-=== INSTRUCTIONS ===
-1. Analyze all articles according to the selection rules
-2. If fewer than 5 relevant articles, perform a web search for today's AI news
-3. Write the summary following the editorial guidelines exactly
-4. Output ONLY the formatted summary, nothing else
-"
+```
+Cron 8h → RSS feeds → merge → POST /summarize
+       → Store DB (articles + digest)
+       → POST Discord via bot
 ```
 
----
+### Weekly (nouveau)
 
-## 7. Configuration Discord
-
-### 7.1 Création du Webhook (Phase 1)
-
-1. Ouvrir Discord → Serveur → Paramètres du channel
-2. Intégrations → Webhooks → Nouveau webhook
-3. Nommer "AI News Bot" + choisir avatar
-4. Copier l'URL du webhook
-5. Stocker dans `.env` : `DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...`
-
-### 7.2 Format du Message Discord
-
-```json
-{
-  "embeds": [{
-    "title": "🤖 Daily AI/ML News Digest",
-    "description": "[Contenu généré par Claude]",
-    "color": 5814783,
-    "timestamp": "2024-12-21T08:00:00.000Z",
-    "footer": {
-      "text": "Powered by Claude Code | Sources: RSS, Reddit, HN"
-    }
-  }]
-}
+```
+Cron Lundi 9h → POST /analyze-weekly
+             → Claude + MCP (query DB, analyse patterns)
+             → Store DB (weekly_digest)
+             → POST Discord via bot
 ```
 
----
+### Webhook Triggers
 
-## 8. Installation et Déploiement
-
-### 8.1 Prérequis
-
-- Docker et Docker Compose installés
-- Claude Code CLI installé et configuré (abonnement actif)
-- Compte Discord avec accès admin au serveur cible
-
-### 8.2 docker-compose.yml
-
-```yaml
-version: '3.8'
-
-services:
-  n8n:
-    image: n8nio/n8n
-    container_name: n8n
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - GENERIC_TIMEZONE=Europe/Paris
-      - TZ=Europe/Paris
-    volumes:
-      - ./n8n-data:/home/node/.n8n
-      - ./config:/home/node/config:ro
-      - ./scripts:/home/node/scripts:ro
+Bot peut trigger workflows n8n via webhook pour commandes custom:
+```
+/weekly --theme X → Bot POST n8n webhook → workflow → callback bot
 ```
 
-### 8.3 Étapes d'Installation
+## MCP Tools (serveur unifié)
 
-```bash
-# 1. Cloner le repo
-git clone git@github.com:Aceek/daily-ai-webhook.git
-cd daily-ai-webhook
+### Existants
+- `submit_digest(execution_id, headlines, research, industry, watching, metadata)`
 
-# 2. Créer les fichiers de config
-mkdir -p config scripts n8n-data workflows bot docs
-
-# 3. Créer le .env
-cp .env.example .env
-# Éditer .env avec vos valeurs
-
-# 4. Lancer n8n
-docker-compose up -d
-
-# 5. Accéder à n8n
-# Ouvrir http://localhost:5678
+### Nouveaux DB Query
+```python
+get_categories(mission_id, date_from?, date_to?) → list[str]
+get_articles(mission_id, categories?, date_from?, date_to?, limit?) → list[dict]
+get_article_stats(mission_id, date_from, date_to) → dict
 ```
 
----
+### Nouveaux Submit
+```python
+submit_daily_digest(execution_id, mission_id, date, ...) → confirmation
+submit_weekly_digest(execution_id, mission_id, week_start, ...) → confirmation
+```
 
-## 9. Plan d'Implémentation
+### Usage Claude
 
-### 9.1 Sprint 1 - Fondations (MVP)
+1. `get_categories()` → voir existantes
+2. Raisonner sur demande user (thème vague → catégories précises)
+3. `get_articles()` → récupérer données
+4. Analyser, détecter patterns
+5. `submit_weekly_digest()` → sauvegarder
 
-| Étape | Tâche | Statut |
-|-------|-------|--------|
-| 1.1 | Créer la structure du projet | ⬜ |
-| 1.2 | Configurer Docker + n8n | ⬜ |
-| 1.3 | Créer le webhook Discord et tester | ⬜ |
-| 1.4 | Écrire les fichiers config (rules.md, etc.) | ⬜ |
-| 1.5 | Créer le workflow n8n avec 3 sources RSS | ⬜ |
-| 1.6 | Intégrer Claude Code via Execute Command | ⬜ |
-| 1.7 | Tester le flux complet manuellement | ⬜ |
-| 1.8 | Configurer le cron et tester en conditions réelles | ⬜ |
+## Missions
 
-### 9.2 Sprint 2 - Enrichissement
+### Structure
 
-| Étape | Tâche | Statut |
-|-------|-------|--------|
-| 2.1 | Ajouter Reddit comme source | ⬜ |
-| 2.2 | Ajouter Hacker News comme source | ⬜ |
-| 2.3 | Affiner les prompts Claude | ⬜ |
-| 2.4 | Améliorer le formatage Discord (embeds) | ⬜ |
-| 2.5 | Ajouter gestion d'erreurs et notifications | ⬜ |
+```
+missions/
+├── _common/
+│   ├── quality-rules.md
+│   ├── research-template.md
+│   └── mcp-usage.md (étendre avec DB tools)
+├── ai-news/
+│   ├── mission.md
+│   ├── selection-rules.md
+│   ├── editorial-guide.md
+│   ├── output-schema.md
+│   └── weekly/
+│       ├── mission.md
+│       ├── analysis-rules.md
+│       └── output-schema.md
+```
 
-### 9.3 Sprint 3 - Bot Discord
+### Multi-Mission Ready
 
-| Étape | Tâche | Statut |
-|-------|-------|--------|
-| 3.1 | Créer le bot Discord (discord.py) | ⬜ |
-| 3.2 | Implémenter `/news now` | ⬜ |
-| 3.3 | Implémenter `/news sources` | ⬜ |
-| 3.4 | Intégrer avec n8n ou remplacer le scheduler | ⬜ |
+- Chaque mission = folder isolé
+- Catégories scopées par mission
+- Articles scopés par mission
+- Digests scopés par mission
 
----
+## Communication Async
 
-## 10. Risques et Mitigations
+### Flow Commande Custom
 
-| Risque | Impact | Probabilité | Mitigation |
-|--------|--------|-------------|------------|
-| API Reddit rate-limitée | Moyen | Moyenne | Utiliser auth Reddit, caching |
-| Claude Code CLI indisponible | Élevé | Faible | Fallback sur API directe |
-| Sources RSS changent d'URL | Faible | Moyenne | Monitoring + alertes |
-| Résumés de mauvaise qualité | Moyen | Moyenne | Itérer sur les prompts |
-| Docker/n8n crash | Élevé | Faible | Restart policies, backups |
+```
+1. User: /weekly --theme "openai"
+2. Bot: génère correlation_id, répond "⏳ Génération..."
+3. Bot: POST n8n webhook {correlation_id, mission, params}
+4. n8n: workflow → claude-service
+5. Claude: MCP get_categories → raisonne → get_articles → analyse
+6. Claude: submit_weekly_digest
+7. claude-service: POST callback bot {correlation_id, result}
+8. Bot: édite message Discord avec résultat
+```
 
----
+## Stockage Résultats
 
-## 11. Métriques de Succès
+| Type | Stocker | Raison |
+|------|---------|--------|
+| Daily standard | Oui | Référence quotidienne |
+| Weekly standard | Oui | Référence hebdo |
+| Weekly --theme | Optionnel | Réutilisable si redemandé |
+| Weekly --dates custom | Non | One-shot |
 
-| Métrique | Objectif | Comment mesurer |
-|----------|----------|-----------------|
-| Fiabilité | >95% d'envois réussis | Logs n8n |
-| Pertinence | Feedback positif utilisateurs | Réactions Discord |
-| Timing | Envoi à ±5min de l'heure configurée | Timestamps |
-| Couverture | Pas de news majeure manquée | Vérification manuelle hebdo |
+## Tech Stack Final
 
----
+| Composant | Choix |
+|-----------|-------|
+| Bot | discord.py |
+| ORM | SQLModel |
+| DB | PostgreSQL 16 |
+| Async pattern | Callback webhook |
+| MCP | Serveur unifié |
+| Crons | n8n conservé |
 
-## 12. Évolutions Possibles
+## Ce qui ne change pas
 
-- **Multi-channels** : Un channel par thématique (AI, Crypto, Gaming)
-- **Personnalisation** : Chaque utilisateur configure ses centres d'intérêt
-- **Historique** : Base de données des news passées, recherchable
-- **Analytics** : Dashboard des tendances sur le temps
-- **Multi-plateformes** : Slack, Telegram, email en plus de Discord
-
----
-
-## Annexes
-
-### A. Ressources Utiles
-
-- [Documentation n8n](https://docs.n8n.io/)
-- [Discord Webhooks Guide](https://discord.com/developers/docs/resources/webhook)
-- [Claude Code Documentation](https://docs.anthropic.com/claude-code)
-- [discord.py Documentation](https://discordpy.readthedocs.io/)
-
-### B. Contacts et Support
-
-- Projet géré via Claude Code
-- Issues et améliorations trackées dans le repo
-
----
-
-*Document généré avec Claude Code - Décembre 2024*
+- Logs folder-per-execution
+- Format digest (headlines, research, industry, watching)
+- Architecture agentic Claude CLI
+- Système missions existant

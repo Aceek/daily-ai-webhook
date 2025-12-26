@@ -1,198 +1,119 @@
 # Vision: AI News Bot v2
 
-## Overview
+## Objectif
+Transformer le bot de veille AI/ML en système d'archivage complet avec couverture exhaustive des sources.
 
-Bot Discord interactif + automations n8n + Claude agentic + PostgreSQL.
+## Changements Majeurs
 
-## Architecture
+### 1. Archivage Complet
+**Problème:** Seuls les articles sélectionnés (~6/jour) sont archivés. Les ~24 exclus sont perdus.
+
+**Solution:** Claude enrichit et soumet TOUS les articles analysés.
 
 ```
-discord-bot ←→ n8n ←→ claude-service ←→ PostgreSQL
-     ↑                      ↑
-     └──── callback ────────┘
+AVANT: 30 analysés → 6 selected → DB (24 perdus)
+APRÈS: 50 analysés → 6 selected + 44 excluded → DB (tout archivé)
 ```
 
-### Containers (docker-compose)
+**Format sortie modifié:**
+```json
+{
+  "selected": [{
+    "title", "summary", "url", "source", "category",
+    "confidence", "emoji", "importance"
+  }],
+  "excluded": [{
+    "url", "title", "category", "reason", "score"
+  }],
+  "metadata": {
+    "total_analyzed", "selected_count", "excluded_count",
+    "exclusion_breakdown": {"off_topic", "duplicate", "low_priority", "outdated"}
+  }
+}
+```
 
-| Service | Tech | Rôle |
-|---------|------|------|
-| postgres | PostgreSQL 16 | Stockage persistant |
-| n8n | n8n 2.0.3 | Crons, RSS, orchestration workflows |
-| claude-service | FastAPI + Claude CLI | Analyse agentic, MCP tools |
-| discord-bot | discord.py | Commandes, publication, callback endpoint |
+**Raisons exclusion (enum):** `off_topic`, `duplicate`, `low_priority`, `outdated`
 
-## Base de Données
-
-### Schéma
-
+**Schema DB articles (nouveaux champs):**
 ```sql
-missions (id PK string, name, description, created_at)
-
-categories (id PK, mission_id FK, name, created_at)
-  UNIQUE(mission_id, name)
-
-articles (id PK, mission_id FK, category_id FK, title, url, source,
-          description, pub_date, digest_id FK nullable, created_at)
-
-daily_digests (id PK, mission_id FK, date UNIQUE/mission, content JSON,
-               generated_at, posted_to_discord bool)
-
-weekly_digests (id PK, mission_id FK, week_start, week_end, params JSON,
-                content JSON, generated_at, is_standard bool)
+status VARCHAR(20) DEFAULT 'raw'  -- 'raw'|'selected'|'excluded'
+exclusion_reason VARCHAR(50)      -- raison si excluded
+relevance_score SMALLINT          -- 1-10
 ```
 
-### Catégories Dynamiques
+### 2. Déduplication Hybride
+**Problème:** Même news peut être republiée plusieurs jours consécutifs.
 
-- Liées à mission_id (multi-mission ready)
-- Claude reçoit catégories existantes via MCP avant analyse
-- Réutilise existantes, crée nouvelles si nécessaire
-- `get_or_create(mission, name)` côté DB
+**Solution 2 niveaux:**
 
-## Discord Bot
+| Niveau | Où | Quoi | Coût |
+|--------|-----|------|------|
+| Code | n8n/MCP | Skip si URL existe en DB (7j) | 0 tokens |
+| Agentique | Claude | Contexte titres 3 derniers jours | ~500 tokens |
 
-### Commandes
+**Nouveau MCP tool:** `get_recent_headlines(days=3)` → liste titres récents
 
-| Commande | Action | Async |
-|----------|--------|-------|
-| `/daily` | Retourne dernier daily (DB cache) | Non |
-| `/weekly` | Retourne dernier weekly standard (DB cache) | Non |
-| `/weekly --theme X` | Génère analyse custom | Oui |
-| `/weekly --from --to` | Analyse période custom | Oui |
-| `/ask "question"` | Question libre sur DB (futur) | Oui |
+**Instruction Claude:** "Ne sélectionne pas sujet déjà couvert, sauf update significative."
 
-### Publication Auto
+### 3. Sources Enrichies (7→14)
 
-- Chan dédié #daily-news pour daily
-- Chan dédié #weekly-digest pour weekly
-- Bot poste proactivement via crons n8n
+**Retirée:** MIT Tech Review (trop de bruit non-AI)
 
-### Callback Endpoint
+**Ajoutées:**
+| Source | Tier | Type |
+|--------|------|------|
+| Anthropic | 1-Labs | RSS/scraping |
+| Meta AI | 1-Labs | RSS/scraping |
+| Mistral | 1-Labs | RSS/scraping |
+| arXiv cs.AI | 2-Research | RSS |
+| arXiv cs.LG | 2-Research | RSS |
+| The Verge AI | 3-Media | RSS |
+| Ars Technica | 3-Media | RSS |
+| r/LocalLLaMA | 4-Community | API |
 
+**Config finale:**
 ```
-POST /callback
-Body: {correlation_id, result, status}
-```
-
-Bot expose HTTP pour recevoir résultats async de n8n/claude-service.
-
-## Workflows n8n
-
-### Daily (existant, étendu)
-
-```
-Cron 8h → RSS feeds → merge → POST /summarize
-       → Store DB (articles + digest)
-       → POST Discord via bot
+Tier 1 (Labs): OpenAI, Google AI, HuggingFace, Anthropic, Meta AI, Mistral
+Tier 2 (Research): arXiv cs.AI, arXiv cs.LG
+Tier 3 (Media): TechCrunch AI, The Verge AI, Ars Technica
+Tier 4 (Community): Hacker News (>40pts), r/MachineLearning, r/LocalLLaMA
 ```
 
-### Weekly (nouveau)
+## Ce qui NE change PAS
+- Scoring: système actuel conservé
+- Weekly: analyse sur articles sélectionnés uniquement
+- Sub-agents: fact-checker et topic-diver disponibles
+- Format Discord embeds
+- Commandes bot (/daily, /weekly)
+
+## Métriques Cibles
+
+| Métrique | Avant | Après |
+|----------|-------|-------|
+| Sources | 7 | 14 |
+| Articles analysés/jour | ~30 | ~50 |
+| Articles archivés/jour | ~6 | ~50 |
+| Couverture Labs | 3/6 | 6/6 |
+| Couverture Research | 0 | arXiv |
+| Couverture Open Source | Faible | r/LocalLLaMA |
+
+## Flux Cible
 
 ```
-Cron Lundi 9h → POST /analyze-weekly
-             → Claude + MCP (query DB, analyse patterns)
-             → Store DB (weekly_digest)
-             → POST Discord via bot
+14 sources → n8n collect → ~60 articles
+                              ↓
+                    Dedup URL (code) → ~50 articles
+                              ↓
+                    Claude + contexte 3j
+                              ↓
+              ┌───────────────┴───────────────┐
+              ↓                               ↓
+        6 selected                      44 excluded
+        (full enrichment)               (minimal: category+reason+score)
+              ↓                               ↓
+              └───────────────┬───────────────┘
+                              ↓
+                     DB (tout archivé)
+                              ↓
+                    Discord publication
 ```
-
-### Webhook Triggers
-
-Bot peut trigger workflows n8n via webhook pour commandes custom:
-```
-/weekly --theme X → Bot POST n8n webhook → workflow → callback bot
-```
-
-## MCP Tools (serveur unifié)
-
-### Existants
-- `submit_digest(execution_id, headlines, research, industry, watching, metadata)`
-
-### Nouveaux DB Query
-```python
-get_categories(mission_id, date_from?, date_to?) → list[str]
-get_articles(mission_id, categories?, date_from?, date_to?, limit?) → list[dict]
-get_article_stats(mission_id, date_from, date_to) → dict
-```
-
-### Nouveaux Submit
-```python
-submit_daily_digest(execution_id, mission_id, date, ...) → confirmation
-submit_weekly_digest(execution_id, mission_id, week_start, ...) → confirmation
-```
-
-### Usage Claude
-
-1. `get_categories()` → voir existantes
-2. Raisonner sur demande user (thème vague → catégories précises)
-3. `get_articles()` → récupérer données
-4. Analyser, détecter patterns
-5. `submit_weekly_digest()` → sauvegarder
-
-## Missions
-
-### Structure
-
-```
-missions/
-├── _common/
-│   ├── quality-rules.md
-│   ├── research-template.md
-│   └── mcp-usage.md (étendre avec DB tools)
-├── ai-news/
-│   ├── mission.md
-│   ├── selection-rules.md
-│   ├── editorial-guide.md
-│   ├── output-schema.md
-│   └── weekly/
-│       ├── mission.md
-│       ├── analysis-rules.md
-│       └── output-schema.md
-```
-
-### Multi-Mission Ready
-
-- Chaque mission = folder isolé
-- Catégories scopées par mission
-- Articles scopés par mission
-- Digests scopés par mission
-
-## Communication Async
-
-### Flow Commande Custom
-
-```
-1. User: /weekly --theme "openai"
-2. Bot: génère correlation_id, répond "⏳ Génération..."
-3. Bot: POST n8n webhook {correlation_id, mission, params}
-4. n8n: workflow → claude-service
-5. Claude: MCP get_categories → raisonne → get_articles → analyse
-6. Claude: submit_weekly_digest
-7. claude-service: POST callback bot {correlation_id, result}
-8. Bot: édite message Discord avec résultat
-```
-
-## Stockage Résultats
-
-| Type | Stocker | Raison |
-|------|---------|--------|
-| Daily standard | Oui | Référence quotidienne |
-| Weekly standard | Oui | Référence hebdo |
-| Weekly --theme | Optionnel | Réutilisable si redemandé |
-| Weekly --dates custom | Non | One-shot |
-
-## Tech Stack Final
-
-| Composant | Choix |
-|-----------|-------|
-| Bot | discord.py |
-| ORM | SQLModel |
-| DB | PostgreSQL 16 |
-| Async pattern | Callback webhook |
-| MCP | Serveur unifié |
-| Crons | n8n conservé |
-
-## Ce qui ne change pas
-
-- Logs folder-per-execution
-- Format digest (headlines, research, industry, watching)
-- Architecture agentic Claude CLI
-- Système missions existant
