@@ -8,7 +8,13 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+
+from services.models import (
+    CallbackRequest,
+    HealthResponse,
+    PublishRequest,
+    PublishResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +25,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Reference to Discord bot (set by main.py)
+# Reference to Discord bot (set by main.py via app.state)
 _bot = None
 
 
@@ -27,72 +33,6 @@ def set_bot(bot) -> None:
     """Set the Discord bot reference for API handlers."""
     global _bot
     _bot = bot
-
-
-class DailyPublishRequest(BaseModel):
-    """Request model for publishing a daily digest."""
-
-    type: str = Field(default="daily", pattern="^daily$")
-    mission_id: str = Field(description="Mission identifier (e.g., 'ai-news')")
-    digest_id: int = Field(description="Database ID of the digest")
-    content: dict[str, Any] = Field(description="Digest content object")
-    date: str = Field(description="Digest date (YYYY-MM-DD)")
-    channel_id: int | None = Field(default=None, description="Override channel ID")
-
-
-class WeeklyPublishRequest(BaseModel):
-    """Request model for publishing a weekly digest."""
-
-    type: str = Field(default="weekly", pattern="^weekly$")
-    mission_id: str = Field(description="Mission identifier")
-    digest_id: int = Field(description="Database ID of the digest")
-    content: dict[str, Any] = Field(description="Digest content object")
-    week_start: str = Field(description="Week start date (YYYY-MM-DD)")
-    week_end: str = Field(description="Week end date (YYYY-MM-DD)")
-    channel_id: int | None = Field(default=None, description="Override channel ID")
-
-
-class PublishRequest(BaseModel):
-    """Union request model for publishing any digest type."""
-
-    type: str = Field(description="Digest type: 'daily' or 'weekly'")
-    mission_id: str = Field(description="Mission identifier (e.g., 'ai-news')")
-    digest_id: int = Field(description="Database ID of the digest")
-    content: dict[str, Any] = Field(description="Digest content object")
-    # Daily fields
-    date: str | None = Field(default=None, description="Digest date (for daily)")
-    # Weekly fields
-    week_start: str | None = Field(default=None, description="Week start (for weekly)")
-    week_end: str | None = Field(default=None, description="Week end (for weekly)")
-    # Common optional
-    channel_id: int | None = Field(default=None, description="Override channel ID")
-
-
-class PublishResponse(BaseModel):
-    """Response model for publish endpoints."""
-
-    status: str
-    message_id: str | None = None
-    channel_id: str | None = None
-    posted_to_discord: bool = False
-    error: str | None = None
-
-
-class CallbackRequest(BaseModel):
-    """Request model for async callback."""
-
-    correlation_id: str = Field(description="Correlation ID from original request")
-    status: str = Field(description="Status: 'success' or 'error'")
-    result: dict[str, Any] | None = Field(default=None, description="Result payload")
-    error: str | None = Field(default=None, description="Error message if failed")
-
-
-class HealthResponse(BaseModel):
-    """Response model for health check."""
-
-    status: str
-    discord_connected: bool
-    guild_count: int
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -150,6 +90,7 @@ async def publish_digest(request: PublishRequest) -> PublishResponse:
                 week_start=request.week_start,
                 week_end=request.week_end,
                 channel_id=request.channel_id,
+                theme=request.theme,
             )
         else:
             raise HTTPException(status_code=400, detail=f"Unknown digest type: {request.type}")
@@ -171,16 +112,13 @@ async def publish_digest(request: PublishRequest) -> PublishResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# In-memory callback storage (for Phase 6)
+# In-memory callback storage (for async workflow integration)
 _callbacks: dict[str, dict[str, Any]] = {}
 
 
 @app.post("/callback")
 async def receive_callback(request: CallbackRequest) -> dict[str, str]:
-    """Receive async callback from external services.
-
-    Used for Phase 6 async workflow integration.
-    """
+    """Receive async callback from external services."""
     logger.info(
         "Received callback for correlation_id=%s status=%s",
         request.correlation_id,
