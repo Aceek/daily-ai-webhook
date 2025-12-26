@@ -23,32 +23,17 @@ from services.publisher import build_weekly_embeds
 logger = logging.getLogger(__name__)
 
 
-def get_previous_week_dates() -> tuple[str, str]:
-    """Calculate previous week's Monday and Sunday dates.
+def get_last_7_days() -> tuple[str, str]:
+    """Calculate last 7 days date range.
 
     Returns:
         Tuple of (week_start, week_end) as YYYY-MM-DD strings
+        where week_start is 7 days ago and week_end is today.
     """
     today = datetime.now()
-    # Go back to last week's Monday
-    days_since_monday = today.weekday()
-    last_monday = today - timedelta(days=days_since_monday + 7)
-    last_sunday = last_monday + timedelta(days=6)
+    seven_days_ago = today - timedelta(days=7)
 
-    return last_monday.strftime("%Y-%m-%d"), last_sunday.strftime("%Y-%m-%d")
-
-
-def get_current_week_dates() -> tuple[str, str]:
-    """Calculate current week's Monday to today dates.
-
-    Returns:
-        Tuple of (week_start, week_end) as YYYY-MM-DD strings
-    """
-    today = datetime.now()
-    days_since_monday = today.weekday()
-    monday = today - timedelta(days=days_since_monday)
-
-    return monday.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")
+    return seven_days_ago.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")
 
 
 class WeeklyCog(commands.Cog):
@@ -130,15 +115,9 @@ class WeeklyCog(commands.Cog):
 
         mission_id = settings.default_mission
 
-        # Default dates: use previous week if not specified, or current week for thematic
+        # Default dates: always use last 7 days if not specified
         if not week_start or not week_end:
-            if theme:
-                # For thematic analysis, default to current week (more relevant)
-                default_start, default_end = get_current_week_dates()
-            else:
-                # For standard generation, use previous week
-                default_start, default_end = get_previous_week_dates()
-
+            default_start, default_end = get_last_7_days()
             week_start = week_start or default_start
             week_end = week_end or default_end
 
