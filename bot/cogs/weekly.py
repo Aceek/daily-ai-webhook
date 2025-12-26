@@ -8,7 +8,7 @@ Provides /weekly command to retrieve or generate weekly digests.
 
 import io
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import discord
@@ -21,21 +21,9 @@ from services.claude_client import ClaudeServiceError, generate_weekly_digest
 from services.command_logger import CommandLog, create_command_log, send_command_log
 from services.database import get_latest_weekly_digest
 from services.publisher import build_weekly_embeds
+from services.utils.date_utils import get_last_7_days
 
 logger = logging.getLogger(__name__)
-
-
-def get_last_7_days() -> tuple[str, str]:
-    """Calculate last 7 days date range.
-
-    Returns:
-        Tuple of (week_start, week_end) as YYYY-MM-DD strings
-        where week_start is 7 days ago and week_end is today.
-    """
-    today = datetime.now()
-    seven_days_ago = today - timedelta(days=7)
-
-    return seven_days_ago.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")
 
 
 class WeeklyCog(commands.Cog):
