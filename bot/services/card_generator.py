@@ -2,11 +2,9 @@
 Card generator service for Discord digest images.
 
 Generates PNG images from digest data using HTML templates and html2image.
-Includes auto-cropping to remove white space.
 """
 
 import asyncio
-import io
 import logging
 import tempfile
 import uuid
@@ -14,10 +12,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from html2image import Html2Image
 from jinja2 import Environment, FileSystemLoader
-from PIL import Image
 
+from services.image_renderer import ImageRenderer
 from services.utils.date_utils import calculate_days_in_range, format_date_display
 
 logger = logging.getLogger(__name__)
@@ -25,102 +22,11 @@ logger = logging.getLogger(__name__)
 # Template directory
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
-# Discord recommended dimensions
-DISCORD_MAX_WIDTH = 1200
-DISCORD_EMBED_WIDTH = 800  # Optimal for embed display
-
-# Browser flags for html2image
-BROWSER_FLAGS = [
-    "--no-sandbox",
-    "--disable-gpu",
-    "--disable-dev-shm-usage",
-    "--disable-software-rasterizer",
-    "--hide-scrollbars",
-    "--default-background-color=0f0f1a",
-    "--force-device-scale-factor=1",
+# Standard sources for fallback
+STANDARD_SOURCES = [
+    "TechCrunch", "OpenAI", "Google AI", "HuggingFace", "arXiv",
+    "Reddit", "Hacker News", "The Verge", "Ars Technica"
 ]
-
-
-class ImageRenderer:
-    """Handles HTML to image rendering and cropping."""
-
-    @staticmethod
-    def create_hti(width: int = 900, height: int = 2500) -> Html2Image:
-        """Create Html2Image instance with specified size.
-
-        Args:
-            width: Viewport width
-            height: Viewport height
-
-        Returns:
-            Configured Html2Image instance
-        """
-        hti = Html2Image(
-            output_path=tempfile.gettempdir(),
-            size=(width, height),
-        )
-        hti.browser.flags = BROWSER_FLAGS
-        return hti
-
-    @staticmethod
-    def render_to_file(hti: Html2Image, html_content: str, filename: str) -> Path:
-        """Render HTML content to a temporary file.
-
-        Args:
-            hti: Html2Image instance
-            html_content: HTML to render
-            filename: Output filename
-
-        Returns:
-            Path to rendered image
-        """
-        hti.screenshot(html_str=html_content, save_as=filename)
-        return Path(tempfile.gettempdir()) / filename
-
-    @staticmethod
-    def auto_crop(image_path: Path, tolerance: int = 10) -> bytes:
-        """Auto-crop image to remove empty space at the bottom.
-
-        Args:
-            image_path: Path to the PNG image
-            tolerance: Color tolerance for matching background
-
-        Returns:
-            Cropped PNG image as bytes
-        """
-        with Image.open(image_path) as img:
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-
-            bg_color = img.getpixel((0, 0))
-            width, height = img.size
-            content_bottom = height
-
-            # Scan from bottom up to find content
-            for y in range(height - 1, 0, -1):
-                row_has_content = False
-                for x in range(0, width, 10):
-                    pixel = img.getpixel((x, y))
-                    if not ImageRenderer._colors_similar(pixel, bg_color, tolerance):
-                        row_has_content = True
-                        break
-
-                if row_has_content:
-                    content_bottom = min(y + 20, height)
-                    break
-
-            if content_bottom < height:
-                img = img.crop((0, 0, width, content_bottom))
-                logger.info("Auto-cropped from %d to %d pixels", height, content_bottom)
-
-            buffer = io.BytesIO()
-            img.save(buffer, format='PNG', optimize=True)
-            return buffer.getvalue()
-
-    @staticmethod
-    def _colors_similar(color1: tuple, color2: tuple, tolerance: int) -> bool:
-        """Check if two RGB colors are similar within tolerance."""
-        return all(abs(c1 - c2) <= tolerance for c1, c2 in zip(color1, color2))
 
 
 class CardGenerator:
@@ -230,10 +136,7 @@ class CardGenerator:
                 "analyzed": metadata.get("articles_analyzed", 0),
                 "top_stories": len(top_stories),
             },
-            "counts": {
-                "trends": len(trends),
-                "stories": len(top_stories),
-            },
+            "counts": {"trends": len(trends), "stories": len(top_stories)},
             "top_story": top_story,
             "trends": formatted_trends,
         }
@@ -269,13 +172,8 @@ class CardGenerator:
                 if source:
                     sources.add(source)
 
-        standard_sources = [
-            "TechCrunch", "OpenAI", "Google AI", "HuggingFace", "arXiv",
-            "Reddit", "Hacker News", "The Verge", "Ars Technica"
-        ]
-
         if len(sources) < 5:
-            for s in standard_sources:
+            for s in STANDARD_SOURCES:
                 sources.add(s)
                 if len(sources) >= 10:
                     break
@@ -283,15 +181,7 @@ class CardGenerator:
         return sorted(list(sources))[:10]
 
     def _render_html_to_image(self, html_content: str, filename_prefix: str) -> bytes:
-        """Render HTML content to a PNG image with auto-cropping.
-
-        Args:
-            html_content: The HTML string to render
-            filename_prefix: Prefix for the temporary filename
-
-        Returns:
-            PNG image as bytes
-        """
+        """Render HTML content to a PNG image with auto-cropping."""
         filename = f"{filename_prefix}_{uuid.uuid4().hex[:8]}.png"
         image_path = Path(tempfile.gettempdir()) / filename
 
@@ -299,10 +189,8 @@ class CardGenerator:
             hti = self.renderer.create_hti()
             self.renderer.render_to_file(hti, html_content, filename)
             image_bytes = self.renderer.auto_crop(image_path)
-
             logger.info("Generated card image: %d bytes", len(image_bytes))
             return image_bytes
-
         finally:
             image_path.unlink(missing_ok=True)
 
@@ -320,23 +208,10 @@ def get_card_generator() -> CardGenerator:
 
 
 async def generate_daily_card_async(content: dict[str, Any], digest_date: str) -> bytes:
-    """Async wrapper for generating daily digest cards.
-
-    Args:
-        content: The digest content
-        digest_date: The date string
-
-    Returns:
-        PNG image as bytes
-    """
+    """Async wrapper for generating daily digest cards."""
     generator = get_card_generator()
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
-        generator.generate_daily_card,
-        content,
-        digest_date,
-    )
+    return await loop.run_in_executor(None, generator.generate_daily_card, content, digest_date)
 
 
 async def generate_weekly_card_async(
@@ -345,17 +220,7 @@ async def generate_weekly_card_async(
     week_end: str,
     theme: str | None = None,
 ) -> bytes:
-    """Async wrapper for generating weekly digest cards.
-
-    Args:
-        content: The weekly digest content
-        week_start: Start date string
-        week_end: End date string
-        theme: Optional theme for thematic digests
-
-    Returns:
-        PNG image as bytes
-    """
+    """Async wrapper for generating weekly digest cards."""
     generator = get_card_generator()
     loop = asyncio.get_event_loop()
     func = partial(generator.generate_weekly_card, content, week_start, week_end, theme)
