@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+      padding: 32px;
+      width: 1200px;
+      min-height: 100px;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #4f46e5;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      font-size: 36px;
+    }
+
+    .title {
+      font-size: 32px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .date {
+      font-size: 18px;
+      color: #9ca3af;
+      font-weight: 500;
+    }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding: 16px 24px;
+      background: rgba(79, 70, 229, 0.1);
+      border-radius: 12px;
+      border: 1px solid rgba(79, 70, 229, 0.2);
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #d1d5db;
+      font-size: 16px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #818cf8;
+    }
+
+    .stat-arrow {
+      color: #6b7280;
+      font-size: 18px;
+      margin: 0 8px;
+    }
+
+    /* News cards */
+    .news-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .news-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 20px 24px;
+      border-left: 4px solid #4f46e5;
+      transition: all 0.2s ease;
+    }
+
+    .news-card.breaking {
+      border-left-color: #ef4444;
+      background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, transparent 40%);
+    }
+
+    .news-card.major {
+      border-left-color: #4f46e5;
+      background: linear-gradient(90deg, rgba(79, 70, 229, 0.1) 0%, transparent 40%);
+    }
+
+    .news-card.standard {
+      border-left-color: #6b7280;
+    }
+
+    .news-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .news-emoji {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .news-content {
+      flex: 1;
+    }
+
+    .news-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #ffffff;
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .news-summary {
+      font-size: 15px;
+      color: #9ca3af;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .news-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .news-source {
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .news-badge {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .news-badge.high {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .news-badge.medium {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+    }
+
+    /* Section labels */
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #818cf8;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .footer-stats {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
+    }
+
+    .empty-state-emoji {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state-text {
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <span class="logo">🤖</span>
+        <span class="title">AI NEWS DAILY</span>
+      </div>
+      <span class="date">{{ date }}</span>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-value">{{ stats.analyzed }}</span>
+        <span>analyzed</span>
+      </div>
+      <span class="stat-arrow">→</span>
+      <div class="stat">
+        <span class="stat-value">{{ stats.selected }}</span>
+        <span>selected</span>
+      </div>
+      <span class="stat-arrow">→</span>
+      <div class="stat">
+        <span class="stat-value">{{ stats.searches }}</span>
+        <span>web searches</span>
+      </div>
+      {% if stats.fact_checks > 0 %}
+      <span class="stat-arrow">|</span>
+      <div class="stat">
+        <span class="stat-value">{{ stats.fact_checks }}</span>
+        <span>fact-checks</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- News cards -->
+    {% if headlines %}
+    <div class="section-label">
+      <span>📰</span>
+      <span>Headlines</span>
+    </div>
+    <div class="news-list">
+      {% for item in headlines[:4] %}
+      <div class="news-card {{ item.importance or 'standard' }}">
+        <div class="news-header">
+          <span class="news-emoji">{{ item.emoji or '📌' }}</span>
+          <div class="news-content">
+            <div class="news-title">{{ item.title[:80] }}{% if item.title|length > 80 %}...{% endif %}</div>
+            {% if item.summary %}
+            <div class="news-summary">{{ item.summary[:150] }}{% if item.summary|length > 150 %}...{% endif %}</div>
+            {% endif %}
+            <div class="news-meta">
+              <span class="news-source">— {{ item.source }}</span>
+              <span class="news-badge {{ item.confidence or 'medium' }}">{{ item.confidence or 'medium' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-state-emoji">📭</div>
+      <div class="empty-state-text">No significant news today</div>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>Generated by AI News Bot</span>
+      <div class="footer-stats">
+        <div class="footer-stat">
+          <span>🔬</span>
+          <span>{{ counts.research }} Research</span>
+        </div>
+        <div class="footer-stat">
+          <span>🏢</span>
+          <span>{{ counts.industry }} Industry</span>
+        </div>
+        <div class="footer-stat">
+          <span>👀</span>
+          <span>{{ counts.watching }} Watching</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

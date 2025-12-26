@@ -1,9 +1,10 @@
 """
 Publisher service for Discord digest publication.
 
-Handles building embeds and publishing to Discord channels.
+Handles building embeds, generating card images, and publishing to Discord channels.
 """
 
+import io
 import logging
 from datetime import datetime
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 import discord
 
 from config import settings
+from services.card_generator import generate_daily_card_async, generate_weekly_card_async
 from services.database import mark_daily_digest_posted, mark_weekly_digest_posted
 
 logger = logging.getLogger(__name__)
@@ -283,8 +285,22 @@ async def publish_daily_digest(
     if not isinstance(channel, discord.TextChannel):
         raise ValueError(f"Channel {target_channel_id} is not a text channel")
 
+    # Generate card image
+    card_file = None
+    try:
+        card_bytes = await generate_daily_card_async(content, digest_date)
+        card_file = discord.File(io.BytesIO(card_bytes), filename="daily-digest.png")
+        logger.info("Generated daily card image: %d bytes", len(card_bytes))
+    except Exception as e:
+        logger.warning("Failed to generate card image, continuing without: %s", e)
+
     embeds = build_daily_embeds(content, digest_date)
-    message = await channel.send(embeds=embeds)
+
+    # Send with card image if available
+    if card_file:
+        message = await channel.send(file=card_file, embeds=embeds)
+    else:
+        message = await channel.send(embeds=embeds)
 
     # Update database
     try:
@@ -334,8 +350,22 @@ async def publish_weekly_digest(
     if not isinstance(channel, discord.TextChannel):
         raise ValueError(f"Channel {target_channel_id} is not a text channel")
 
+    # Generate card image
+    card_file = None
+    try:
+        card_bytes = await generate_weekly_card_async(content, week_start, week_end)
+        card_file = discord.File(io.BytesIO(card_bytes), filename="weekly-digest.png")
+        logger.info("Generated weekly card image: %d bytes", len(card_bytes))
+    except Exception as e:
+        logger.warning("Failed to generate weekly card image, continuing without: %s", e)
+
     embeds = build_weekly_embeds(content, week_start, week_end)
-    message = await channel.send(embeds=embeds)
+
+    # Send with card image if available
+    if card_file:
+        message = await channel.send(file=card_file, embeds=embeds)
+    else:
+        message = await channel.send(embeds=embeds)
 
     # Update database
     try:
