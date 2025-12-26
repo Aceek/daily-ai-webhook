@@ -4,6 +4,7 @@ Daily digest command cog.
 Provides /daily command to retrieve the latest daily digest.
 """
 
+import io
 import logging
 from datetime import datetime
 
@@ -12,6 +13,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import settings
+from services.card_generator import generate_daily_card_async
 from services.database import get_daily_digest_by_date, get_latest_daily_digest
 from services.publisher import build_daily_embeds
 
@@ -72,11 +74,21 @@ class DailyCog(commands.Cog):
                     )
                     return
 
-            # Build embed from digest content
+            # Build card and embeds from digest content
             content = digest["content"]
             digest_date = str(digest["date"])
+
+            # Generate card image
+            try:
+                card_bytes = await generate_daily_card_async(content, digest_date)
+                card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-daily.png")
+                await interaction.followup.send(file=card_file)
+            except Exception as e:
+                logger.warning("Failed to generate card image: %s", e)
+
+            # Send detailed embeds
             embeds = build_daily_embeds(content, digest_date)
-            await interaction.followup.send(embeds=embeds)
+            await interaction.followup.send(embeds=embeds[:10])
 
         except Exception as e:
             logger.error("Error fetching daily digest: %s", e)

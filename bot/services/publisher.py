@@ -6,7 +6,6 @@ Handles building embeds, generating card images, and publishing to Discord chann
 
 import io
 import logging
-from datetime import datetime
 from typing import Any
 
 import discord
@@ -14,202 +13,49 @@ import discord
 from config import settings
 from services.card_generator import generate_daily_card_async, generate_weekly_card_async
 from services.database import mark_daily_digest_posted, mark_weekly_digest_posted
+from services.embed_builder import (
+    build_headlines_embed,
+    build_industry_embed,
+    build_research_embed,
+    build_summary_embed,
+    build_top_stories_embed,
+    build_trends_embed,
+    build_watching_embed,
+)
 
 logger = logging.getLogger(__name__)
-
-# Visual constants
-SECTION_EMOJIS = {
-    "headlines": "📰",
-    "research": "🔬",
-    "industry": "🏢",
-    "watching": "👀",
-}
-
-CONFIDENCE_BADGES = {
-    "high": "🟢",
-    "medium": "🟡",
-}
-
-DIRECTION_EMOJIS = {
-    "rising": "📈",
-    "stable": "➡️",
-    "declining": "📉",
-}
-
-DEFAULT_ITEM_EMOJI = "📌"
-
-
-def _format_news_item(item: dict[str, Any], show_summary: bool = True) -> str:
-    """Format a single news item for display.
-
-    Args:
-        item: The news item dict
-        show_summary: Whether to include the summary
-
-    Returns:
-        Formatted string for the item
-    """
-    emoji = item.get("emoji", DEFAULT_ITEM_EMOJI)
-    confidence = item.get("confidence", "medium")
-    confidence_badge = CONFIDENCE_BADGES.get(confidence, "")
-    title = item.get("title", "")[:100]
-    url = item.get("url", "")
-    source = item.get("source", "")
-    summary = item.get("summary", "")[:150]
-
-    # Build the line
-    if url:
-        title_line = f"{confidence_badge} {emoji} **[{title}]({url})**"
-    else:
-        title_line = f"{confidence_badge} {emoji} **{title}**"
-
-    if source:
-        title_line += f" — *{source}*"
-
-    if show_summary and summary:
-        return f"{title_line}\n{summary}\n\n"
-    else:
-        return f"{title_line}\n"
 
 
 def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discord.Embed]:
     """Build detailed Discord embeds from daily digest content.
 
     Creates separate embeds for each category with full article details.
+    Uses embed_builder module for consistent styling.
 
     Args:
         content: The digest content (headlines, research, industry, watching, metadata)
-        digest_date: The date string for the digest
+        digest_date: The date string for the digest (unused, kept for API compatibility)
 
     Returns:
         List of Discord embeds (one per category)
     """
     embeds = []
 
-    # Headlines embed
     headlines = content.get("headlines", [])
     if headlines:
-        headlines_embed = discord.Embed(
-            title="📰 Headlines",
-            description="Top AI/ML news stories of the day",
-            color=discord.Color.from_rgb(239, 68, 68),  # Red
-        )
+        embeds.append(build_headlines_embed(headlines))
 
-        for item in headlines:
-            emoji = item.get("emoji", DEFAULT_ITEM_EMOJI)
-            confidence = item.get("confidence", "medium")
-            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
-
-            field_name = f"{emoji} {item.get('title', '')[:80]}"
-
-            summary = item.get("summary", "")[:200]
-            if len(item.get("summary", "")) > 200:
-                summary += "..."
-
-            url = item.get("url", "")
-            source = item.get("source", "")
-
-            field_value = f"{summary}\n\n"
-            if url:
-                field_value += f"📎 **[Read article]({url})**\n"
-            field_value += f"└ `{source}` {conf_indicator} {confidence}"
-
-            headlines_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
-
-        embeds.append(headlines_embed)
-
-    # Research embed
     research = content.get("research", [])
     if research:
-        research_embed = discord.Embed(
-            title="🔬 Research & Development",
-            description="Latest papers and technical announcements",
-            color=discord.Color.from_rgb(34, 197, 94),  # Green
-        )
+        embeds.append(build_research_embed(research))
 
-        for item in research:
-            confidence = item.get("confidence", "medium")
-            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
-
-            field_name = f"📄 {item.get('title', '')[:80]}"
-
-            summary = item.get("summary", "")[:200]
-            if len(item.get("summary", "")) > 200:
-                summary += "..."
-
-            url = item.get("url", "")
-            source = item.get("source", "")
-
-            field_value = f"{summary}\n\n"
-            if url:
-                field_value += f"📎 **[Read more]({url})**\n"
-            field_value += f"└ `{source}` {conf_indicator} {confidence}"
-
-            research_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
-
-        embeds.append(research_embed)
-
-    # Industry embed
     industry = content.get("industry", [])
     if industry:
-        industry_embed = discord.Embed(
-            title="🏢 Industry News",
-            description="Business moves, acquisitions, and market updates",
-            color=discord.Color.from_rgb(99, 102, 241),  # Indigo
-        )
+        embeds.append(build_industry_embed(industry))
 
-        for item in industry:
-            confidence = item.get("confidence", "medium")
-            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
-
-            field_name = f"💼 {item.get('title', '')[:80]}"
-
-            summary = item.get("summary", "")[:200]
-            if len(item.get("summary", "")) > 200:
-                summary += "..."
-
-            url = item.get("url", "")
-            source = item.get("source", "")
-
-            field_value = f"{summary}\n\n"
-            if url:
-                field_value += f"📎 **[Read more]({url})**\n"
-            field_value += f"└ `{source}` {conf_indicator} {confidence}"
-
-            industry_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
-
-        embeds.append(industry_embed)
-
-    # Watching embed
     watching = content.get("watching", [])
     if watching:
-        watching_embed = discord.Embed(
-            title="👀 Worth Watching",
-            description="Emerging trends and stories to follow",
-            color=discord.Color.from_rgb(234, 179, 8),  # Yellow
-        )
-
-        for item in watching:
-            confidence = item.get("confidence", "medium")
-            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
-
-            field_name = f"🔍 {item.get('title', '')[:80]}"
-
-            summary = item.get("summary", "")[:200]
-            if len(item.get("summary", "")) > 200:
-                summary += "..."
-
-            url = item.get("url", "")
-            source = item.get("source", "")
-
-            field_value = f"{summary}\n\n"
-            if url:
-                field_value += f"📎 **[Read more]({url})**\n"
-            field_value += f"└ `{source}` {conf_indicator} {confidence}"
-
-            watching_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
-
-        embeds.append(watching_embed)
+        embeds.append(build_watching_embed(watching))
 
     return embeds
 
@@ -217,94 +63,39 @@ def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discor
 def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str) -> list[discord.Embed]:
     """Build Discord embeds from weekly digest content.
 
+    Creates separate embeds for summary, trends, and top stories.
+    Uses embed_builder module for consistent styling.
+
     Args:
-        content: The digest content
-        week_start: Start date string
-        week_end: End date string
+        content: The digest content (summary, trends, top_stories, metadata)
+        week_start: Start date string (unused, kept for API compatibility)
+        week_end: End date string (unused, kept for API compatibility)
 
     Returns:
         List of Discord embeds
     """
     embeds = []
 
-    # Main embed with summary
-    main_embed = discord.Embed(
-        title="📊 AI News Weekly",
-        description=f"**{week_start} → {week_end}**",
-        color=discord.Color.purple(),
-        timestamp=datetime.utcnow(),
-    )
-
-    # Add summary
+    # Summary embed (if available)
     summary = content.get("summary", "")
     if summary:
-        if len(summary) > 1024:
-            summary = summary[:1021] + "..."
-        main_embed.add_field(
-            name="📋 Executive Summary",
-            value=summary,
-            inline=False,
-        )
+        embeds.append(build_summary_embed(summary))
 
-    # Add trends
+    # Trends embed
     trends = content.get("trends", [])
     if trends:
-        trends_text = ""
-        for trend in trends[:5]:
-            name = trend.get("name", "")
-            direction = trend.get("direction", "")
-            direction_emoji = DIRECTION_EMOJIS.get(direction, "")
-            description = trend.get("description", "")[:100]
-            trends_text += f"{direction_emoji} **{name}**\n{description}\n\n"
+        embeds.append(build_trends_embed(trends))
 
-        main_embed.add_field(
-            name="📈 Key Trends",
-            value=trends_text[:1024] or "No trends identified",
-            inline=False,
-        )
-
-    embeds.append(main_embed)
-
-    # Second embed for top stories
+    # Top stories embed
     top_stories = content.get("top_stories", [])
     if top_stories:
-        stories_embed = discord.Embed(
-            title="🏆 Top Stories of the Week",
-            color=discord.Color.purple(),
-        )
-
-        for i, story in enumerate(top_stories[:5], 1):
-            emoji = story.get("emoji", DEFAULT_ITEM_EMOJI)
-            title = story.get("title", "")[:80]
-            summary = story.get("summary", "")[:200]
-            url = story.get("url", "")
-            impact = story.get("impact", "")[:100]
-
-            # Number emoji for ranking
-            number_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
-            number_emoji = number_emojis[i - 1] if i <= 5 else f"{i}."
-
-            if url:
-                field_name = f"{number_emoji} {emoji} [{title}]({url})"
-            else:
-                field_name = f"{number_emoji} {emoji} {title}"
-
-            field_value = summary
-            if impact:
-                field_value += f"\n💡 *{impact}*"
-
-            stories_embed.add_field(
-                name=field_name[:256],
-                value=field_value[:1024],
-                inline=False,
-            )
-
-        embeds.append(stories_embed)
+        embeds.append(build_top_stories_embed(top_stories))
 
     # Add metadata footer to last embed
-    metadata = content.get("metadata", {})
-    articles_analyzed = metadata.get("articles_analyzed", 0)
-    embeds[-1].set_footer(text=f"🤖 Based on {articles_analyzed} articles")
+    if embeds:
+        metadata = content.get("metadata", {})
+        articles_analyzed = metadata.get("articles_analyzed", 0)
+        embeds[-1].set_footer(text=f"🤖 Based on {articles_analyzed} articles")
 
     return embeds
 
@@ -380,6 +171,7 @@ async def publish_weekly_digest(
     week_start: str,
     week_end: str,
     channel_id: int | None = None,
+    theme: str | None = None,
 ) -> dict[str, Any]:
     """Publish a weekly digest to Discord.
 
@@ -390,6 +182,7 @@ async def publish_weekly_digest(
         week_start: Start date string
         week_end: End date string
         channel_id: Override channel ID (uses config default if None)
+        theme: Optional theme for thematic digests
 
     Returns:
         Publication result with message_id, channel_id, success status
@@ -409,19 +202,20 @@ async def publish_weekly_digest(
     # Generate card image
     card_file = None
     try:
-        card_bytes = await generate_weekly_card_async(content, week_start, week_end)
-        card_file = discord.File(io.BytesIO(card_bytes), filename="weekly-digest.png")
+        card_bytes = await generate_weekly_card_async(content, week_start, week_end, theme)
+        card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-weekly.png")
         logger.info("Generated weekly card image: %d bytes", len(card_bytes))
     except Exception as e:
         logger.warning("Failed to generate weekly card image, continuing without: %s", e)
 
     embeds = build_weekly_embeds(content, week_start, week_end)
 
-    # Send with card image if available
+    # Send card image first (if available), then embeds separately
     if card_file:
-        message = await channel.send(file=card_file, embeds=embeds)
-    else:
-        message = await channel.send(embeds=embeds)
+        await channel.send(file=card_file)
+
+    # Send detailed embeds (Discord allows max 10 embeds per message)
+    message = await channel.send(embeds=embeds[:10])
 
     # Update database
     try:

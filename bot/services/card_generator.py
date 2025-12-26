@@ -117,13 +117,15 @@ class CardGenerator:
         content: dict[str, Any],
         week_start: str,
         week_end: str,
+        theme: str | None = None,
     ) -> bytes:
         """Generate a weekly digest card image.
 
         Args:
-            content: The weekly digest content
+            content: The weekly digest content (trends, top_stories, summary, metadata)
             week_start: Start date string
             week_end: End date string
+            theme: Optional theme for thematic digests
 
         Returns:
             PNG image as bytes (auto-cropped)
@@ -132,44 +134,57 @@ class CardGenerator:
         top_stories = content.get("top_stories", [])
         metadata = content.get("metadata", {})
 
-        # Convert top stories to headline format for the template
-        headlines = []
-        for story in top_stories[:4]:
-            headlines.append({
-                "emoji": story.get("emoji", "🏆"),
+        # Calculate days in range
+        from datetime import datetime
+        try:
+            start = datetime.strptime(week_start, "%Y-%m-%d")
+            end = datetime.strptime(week_end, "%Y-%m-%d")
+            days = (end - start).days + 1
+        except (ValueError, TypeError):
+            days = 7
+
+        # Get top story with proper source extraction
+        top_story = None
+        if top_stories:
+            story = top_stories[0]
+            url = story.get("url", "")
+            source = story.get("source", "")
+            if not source and url:
+                try:
+                    source = url.split("/")[2].replace("www.", "")
+                except (IndexError, AttributeError):
+                    source = ""
+            top_story = {
                 "title": story.get("title", ""),
                 "summary": story.get("summary", ""),
-                "source": story.get("url", "").split("/")[2] if story.get("url") else "",
-                "confidence": "high",
-                "importance": "major",
+                "source": source,
+            }
+
+        # Format trends for template
+        formatted_trends = []
+        for trend in trends[:6]:
+            formatted_trends.append({
+                "name": trend.get("name", ""),
+                "direction": trend.get("direction", "stable"),
             })
 
-        sources = ["TechCrunch", "OpenAI", "Google AI", "HuggingFace", "arXiv"]
-
         template_data = {
-            "date": f"{self._format_date(week_start)} → {self._format_date(week_end)}",
-            "headlines": headlines,
-            "research": [],
-            "industry": [],
-            "watching": [],
-            "sources_count": len(sources),
-            "sources_list": " • ".join(sources),
+            "date_range": f"{self._format_date(week_start)} → {self._format_date(week_end)}",
+            "theme": theme,
             "stats": {
+                "days": days,
                 "analyzed": metadata.get("articles_analyzed", 0),
-                "selected": len(top_stories),
-                "searches": 0,
-                "fact_checks": 0,
+                "top_stories": len(top_stories),
             },
             "counts": {
-                "headlines": len(headlines),
-                "research": 0,
-                "industry": 0,
-                "watching": len(trends),
+                "trends": len(trends),
+                "stories": len(top_stories),
             },
-            "top_story": headlines[0] if headlines else None,
+            "top_story": top_story,
+            "trends": formatted_trends,
         }
 
-        template = self.jinja_env.get_template("digest_card.html")
+        template = self.jinja_env.get_template("digest_card_weekly.html")
         html_content = template.render(**template_data)
 
         return self._render_html_to_image(html_content, "weekly_digest")
@@ -369,6 +384,7 @@ async def generate_weekly_card_async(
     content: dict[str, Any],
     week_start: str,
     week_end: str,
+    theme: str | None = None,
 ) -> bytes:
     """Async wrapper for generating weekly digest cards.
 
@@ -376,19 +392,16 @@ async def generate_weekly_card_async(
         content: The weekly digest content
         week_start: Start date string
         week_end: End date string
+        theme: Optional theme for thematic digests
 
     Returns:
         PNG image as bytes
     """
     import asyncio
+    from functools import partial
 
     generator = get_card_generator()
 
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
-        generator.generate_weekly_card,
-        content,
-        week_start,
-        week_end,
-    )
+    func = partial(generator.generate_weekly_card, content, week_start, week_end, theme)
+    return await loop.run_in_executor(None, func)

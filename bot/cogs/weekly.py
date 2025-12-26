@@ -6,6 +6,7 @@ Provides /weekly command to retrieve or generate weekly digests.
 - With theme/dates: generates a new digest via claude-service
 """
 
+import io
 import logging
 from datetime import datetime, timedelta
 from typing import Any
@@ -15,6 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import settings
+from services.card_generator import generate_weekly_card_async
 from services.claude_client import ClaudeServiceError, generate_weekly_digest
 from services.command_logger import CommandLog, create_command_log, send_command_log
 from services.database import get_latest_weekly_digest
@@ -92,8 +94,18 @@ class WeeklyCog(commands.Cog):
             content = digest["content"]
             week_start = str(digest["week_start"])
             week_end = str(digest["week_end"])
+
+            # Generate card image
+            try:
+                card_bytes = await generate_weekly_card_async(content, week_start, week_end)
+                card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-weekly.png")
+                await interaction.followup.send(file=card_file)
+            except Exception as e:
+                logger.warning("Failed to generate weekly card image: %s", e)
+
+            # Send detailed embeds
             embeds = build_weekly_embeds(content, week_start, week_end)
-            await interaction.followup.send(embeds=embeds)
+            await interaction.followup.send(embeds=embeds[:10])
 
         except Exception as e:
             logger.error("Error fetching weekly digest: %s", e)
@@ -170,16 +182,30 @@ class WeeklyCog(commands.Cog):
                 )
                 return
 
-            # Build embeds from the generated digest
+            # Build card and embeds from the generated digest
             content = digest
+
+            # Delete the status message
+            await status_msg.delete()
+
+            # Generate and send card image
+            try:
+                card_bytes = await generate_weekly_card_async(
+                    content, week_start, week_end, theme
+                )
+                card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-weekly.png")
+                await interaction.followup.send(file=card_file)
+            except Exception as e:
+                logger.warning("Failed to generate weekly card image: %s", e)
+
+            # Send detailed embeds
             embeds = build_weekly_embeds(content, week_start, week_end)
 
             # Add theme indicator to first embed if thematic
-            if theme:
+            if theme and embeds:
                 embeds[0].title = f"📊 AI News Weekly: {theme.title()}"
 
-            # Edit the status message with the actual content
-            await status_msg.edit(content=None, embeds=embeds)
+            await interaction.followup.send(embeds=embeds[:10])
 
             # Log success
             cmd_log.finish(
