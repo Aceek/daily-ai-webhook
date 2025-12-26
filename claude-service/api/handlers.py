@@ -9,10 +9,10 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from api.converters import convert_workflow_request
 from api.models import (
     AnalyzeWeeklyRequest,
     AnalyzeWeeklyResponse,
@@ -27,13 +27,6 @@ from api.models import (
 from config import Settings, validate_mission, validate_weekly_mission
 from database import get_engine
 from loggers.execution_logger import ExecutionLogger, create_execution_log
-from loggers.models import (
-    DiscordChannelLog,
-    DiscordGuildLog,
-    DiscordUserLog,
-    NodeExecutionLog,
-    WorkflowLog,
-)
 from loggers.workflow_logger import WorkflowLogger
 from repositories.article_repository import check_duplicate_urls
 from services.claude_service import call_claude_cli, write_articles_file
@@ -281,69 +274,13 @@ async def handle_log_workflow(
     logger.info("Logging %s: %s", source_type, request.workflow_execution_id)
 
     try:
-        workflow_log = _convert_workflow_request(request)
+        workflow_log = convert_workflow_request(request)
         log_path = workflow_logger.save(workflow_log)
         logger.info("Workflow log saved: %s", log_path)
         return WorkflowLogResponse(success=True, log_file=str(log_path))
     except Exception as e:
         logger.error("Failed to save workflow log: %s", e)
         return WorkflowLogResponse(success=False, error=str(e))
-
-
-def _convert_workflow_request(request: WorkflowLogRequest) -> WorkflowLog:
-    """Convert API request to WorkflowLog model."""
-    started_at = datetime.fromisoformat(request.started_at.replace("Z", "+00:00"))
-    finished_at = datetime.fromisoformat(request.finished_at.replace("Z", "+00:00"))
-
-    nodes = [
-        NodeExecutionLog(name=n.name, status=n.status, error=n.error)
-        for n in request.nodes_executed
-    ]
-
-    discord_user = None
-    discord_guild = None
-    discord_channel = None
-
-    if request.discord_user:
-        discord_user = DiscordUserLog(
-            id=request.discord_user.id,
-            name=request.discord_user.name,
-        )
-    if request.discord_guild:
-        discord_guild = DiscordGuildLog(
-            id=request.discord_guild.id,
-            name=request.discord_guild.name,
-        )
-    if request.discord_channel:
-        discord_channel = DiscordChannelLog(
-            id=request.discord_channel.id,
-            name=request.discord_channel.name,
-        )
-
-    return WorkflowLog(
-        workflow_execution_id=request.workflow_execution_id,
-        workflow_name=request.workflow_name,
-        started_at=started_at,
-        finished_at=finished_at,
-        duration_seconds=(finished_at - started_at).total_seconds(),
-        status=request.status,
-        error_message=request.error_message,
-        error_node=request.error_node,
-        nodes_executed=nodes,
-        articles_count=request.articles_count,
-        claude_execution_id=request.claude_execution_id,
-        discord_sent=request.discord_sent,
-        discord_message_id=request.discord_message_id,
-        discord_channel_id=request.discord_channel_id,
-        digest_id=request.digest_id,
-        db_saved=request.db_saved,
-        articles_saved=request.articles_saved,
-        source=request.source,
-        discord_user=discord_user,
-        discord_guild=discord_guild,
-        discord_channel=discord_channel,
-        command_args=request.command_args,
-    )
 
 
 async def handle_check_urls(request: CheckUrlsRequest) -> CheckUrlsResponse:
