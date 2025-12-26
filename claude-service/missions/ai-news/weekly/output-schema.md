@@ -20,7 +20,8 @@ Le JSON soumis via `submit_weekly_digest` doit respecter ce schéma.
       "title": "OpenAI releases GPT-5",
       "summary": "New model features 1M context window...",
       "url": "https://openai.com/blog/gpt-5",
-      "impact": "Sets new standard for context length"
+      "impact": "Sets new standard for context length",
+      "emoji": "🚀"
     }
   ],
   "category_analysis": {
@@ -78,11 +79,14 @@ Le JSON soumis via `submit_weekly_digest` doit respecter ce schéma.
 | `summary` | string | Max 300 chars, 2-3 phrases |
 | `url` | string | URL valide, source primaire |
 | `impact` | string | Max 200 chars, implications |
+| `emoji` | string | Emoji unique représentant le sujet |
 
 **Contraintes array:**
 - Minimum: 3 stories
 - Maximum: 5 stories
 - Recommandé: 4-5 stories
+
+**Emoji:** Choisis un emoji qui capture l'essence de la story (🚀 pour release, 💰 pour funding, ⚖️ pour régulation, etc.)
 
 ### category_analysis (object)
 
@@ -183,25 +187,29 @@ Pour chaque catégorie:
       "title": "OpenAI releases GPT-5 with 1M token context window",
       "summary": "OpenAI announced GPT-5, featuring unprecedented 1 million token context and 40% improvement on MMLU benchmark. The model is available to Plus and Enterprise users.",
       "url": "https://openai.com/blog/gpt-5",
-      "impact": "Sets new industry standard for context length, enabling full codebase and document analysis in single prompts"
+      "impact": "Sets new industry standard for context length, enabling full codebase and document analysis in single prompts",
+      "emoji": "🚀"
     },
     {
       "title": "EU finalizes AI Act implementation timeline",
       "summary": "European Commission published final implementation schedule with high-risk AI systems requirements taking effect August 2025. Penalties can reach 7% of global revenue.",
       "url": "https://ec.europa.eu/ai-act-timeline",
-      "impact": "Creates compliance urgency for global AI companies operating in EU market"
+      "impact": "Creates compliance urgency for global AI companies operating in EU market",
+      "emoji": "⚖️"
     },
     {
       "title": "Anthropic closes $2.3B funding round",
       "summary": "Anthropic announced largest AI funding round of 2024, led by Google and Spark Capital. Valuation reaches $25B, funds earmarked for compute and safety research.",
       "url": "https://anthropic.com/news/series-d",
-      "impact": "Solidifies Anthropic's position as leading AI safety-focused lab with resources to compete at frontier"
+      "impact": "Solidifies Anthropic's position as leading AI safety-focused lab with resources to compete at frontier",
+      "emoji": "💰"
     },
     {
       "title": "Google announces Gemini 2.0 with native multimodality",
       "summary": "Google unveiled next-generation Gemini with native image, audio, and video generation. Model available in early access to select partners.",
       "url": "https://blog.google/gemini-2",
-      "impact": "Signals shift toward unified multimodal models rather than separate specialized systems"
+      "impact": "Signals shift toward unified multimodal models rather than separate specialized systems",
+      "emoji": "✨"
     }
   ],
 
