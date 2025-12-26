@@ -49,6 +49,26 @@ get_categories(mission_id="{mission}")
   - Article sur GPT-5 → catégorie existante "LLM Models" (pas "New LLMs")
   - Article sur loi EU AI → catégorie existante "AI Regulation" (pas "EU AI Laws")
 
+### Étape 1.6 : Vérification des doublons récents (OBLIGATOIRE)
+
+**AVANT de sélectionner les articles**, vérifie les sujets déjà couverts:
+
+```
+get_recent_headlines(mission_id="{mission}", days=3)
+```
+
+**Retourne:** Liste des headlines des 3 derniers jours avec title, url, date, category.
+
+**Règles de déduplication:**
+- **NE PAS sélectionner** un article si le même sujet a déjà été couvert récemment
+- **EXCEPTION:** Sélectionner si c'est une mise à jour significative (nouvelle info, développement majeur)
+- **Marquer comme `duplicate`** les articles exclus pour cette raison
+
+**Exemples:**
+- "OpenAI releases GPT-5" (hier) + "GPT-5 now available" (aujourd'hui) → duplicate
+- "OpenAI releases GPT-5" (hier) + "GPT-5 benchmarks show 40% improvement" → OK (nouvelle info)
+- "Anthropic raises $2B" (il y a 2 jours) + "Anthropic fundraise details revealed" → duplicate
+
 ### Étape 2 : Exécution Daily
 1. Analyse les articles selon les règles de sélection
 2. Effectue les recherches web requises (WebSearch) - minimum 3
@@ -156,6 +176,7 @@ get_articles(mission_id="{mission}", date_from="{week_start}", date_to="{week_en
 | `Task` | Déléguer aux sub-agents | ✓ | ✗ |
 | `get_article_stats` | Stats articles en DB (MCP) | ✗ | ✓ |
 | `get_categories` | Catégories existantes (MCP) | ✓ | ✓ |
+| `get_recent_headlines` | Headlines récentes pour dédup (MCP) | ✓ | ✗ |
 | `get_articles` | Articles en DB (MCP) | ✗ | ✓ |
 | `submit_digest` | Soumettre daily (MCP) | ✓ | ✗ |
 | `submit_weekly_digest` | Soumettre weekly (MCP) | ✗ | ✓ |
@@ -189,18 +210,20 @@ get_articles(mission_id="{mission}", date_from="{week_start}", date_to="{week_en
 
 ### Daily spécifique
 4. **TOUJOURS** appeler `get_categories` AVANT de classifier les articles
-5. **TOUJOURS** réutiliser les catégories existantes quand le sujet correspond
-6. **TOUJOURS** effectuer minimum 3 recherches web (WebSearch)
-7. **TOUJOURS** écrire le document de recherche AVANT de soumettre
-8. **TOUJOURS** utiliser `submit_digest` pour le résultat final
-9. **TOUJOURS** soumettre TOUS les articles (selected + excluded) pour archivage complet
-10. **LIMITER** les sub-agents (max 2 fact-checks, max 2 deep-dives)
+5. **TOUJOURS** appeler `get_recent_headlines` AVANT de sélectionner les articles
+6. **TOUJOURS** réutiliser les catégories existantes quand le sujet correspond
+7. **NE PAS** sélectionner un sujet déjà couvert (sauf update significative)
+8. **TOUJOURS** effectuer minimum 3 recherches web (WebSearch)
+9. **TOUJOURS** écrire le document de recherche AVANT de soumettre
+10. **TOUJOURS** utiliser `submit_digest` pour le résultat final
+11. **TOUJOURS** soumettre TOUS les articles (selected + excluded) pour archivage complet
+12. **LIMITER** les sub-agents (max 2 fact-checks, max 2 deep-dives)
 
 ### Weekly spécifique
-11. **TOUJOURS** utiliser les MCP DB tools pour récupérer les données
-12. **TOUJOURS** identifier au moins 2 tendances
-13. **TOUJOURS** inclure au moins 3 top stories
-14. **TOUJOURS** utiliser `submit_weekly_digest` (PAS submit_digest!)
+13. **TOUJOURS** utiliser les MCP DB tools pour récupérer les données
+14. **TOUJOURS** identifier au moins 2 tendances
+15. **TOUJOURS** inclure au moins 3 top stories
+16. **TOUJOURS** utiliser `submit_weekly_digest` (PAS submit_digest!)
 
 ## Exemples de démarrage
 
@@ -223,14 +246,21 @@ Je suis le protocole DAILY...
 6. Read("/app/missions/ai-news/editorial-guide.md") ✓
 7. Read("/app/missions/ai-news/output-schema.md") ✓
 
-Fichiers chargés. Je récupère les catégories existantes...
+Fichiers chargés. Je récupère le contexte avant analyse...
+
 → get_categories("ai-news")
   Catégories existantes: LLM Models, AI Regulation, Open Source, Research Papers
 
-Je commence l'analyse daily en réutilisant ces catégories...
+→ get_recent_headlines("ai-news", days=3)
+  Headlines récentes (12): "Claude 3.5 Opus released", "OpenAI Sora delayed"...
+
+Je commence l'analyse en évitant les doublons...
 → WebSearch (min 3)
 → Write research.md
-→ submit_digest()  ← articles classés dans catégories existantes
+→ submit_digest(
+    headlines=[...],
+    excluded=[{"url": "...", "reason": "duplicate", "score": 6}, ...]
+  )
 ```
 
 ### Exemple WEEKLY
