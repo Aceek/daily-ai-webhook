@@ -51,11 +51,22 @@ WATCHING (0-2 items)
 - Nom lisible (pas l'URL)
 - Exemples: "OpenAI Blog", "arXiv", "TechCrunch", "Reddit r/MachineLearning"
 
-## Limites
+## Volume de sélection
 
-- Total items: 4-8 recommandé
+**Adapter au cycle d'actualités - pas de limite fixe:**
+
+| Contexte | Articles | Exemple |
+|----------|----------|---------|
+| Jour calme (holidays, weekend) | 1-3 | Pas de remplissage artificiel |
+| Jour normal | 4-8 | Volume typique |
+| Actualité chargée | 8-12 | Multiples annonces importantes |
+| Breaking news majeur | 10+ | Nouveau modèle GPT, acquisition majeure |
+
+**Principes:**
+- Qualité > Quantité: chaque article doit mériter sa place
 - Pas de section vide obligatoirement remplie
 - Si pas de news significative, produire un digest minimal avec note explicative
+- Ne jamais "remplir" avec des articles low-priority pour atteindre un quota
 
 ## Instructions spéciales
 

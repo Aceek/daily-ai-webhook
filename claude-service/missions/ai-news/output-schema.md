@@ -195,6 +195,6 @@ Si un topic-diver a été utilisé :
 2. `metadata.research_doc` doit pointer vers un fichier existant
 3. Tous les URLs doivent être valides
 4. Pas de doublons (même URL ou titre très similaire)
-5. Total items selected recommandé: 4-8
+5. Volume adapté au cycle d'actualités (1-3 jour calme, 4-8 normal, 10+ breaking news)
 6. **TOUS les articles analysés doivent être soumis** (selected OU excluded)
 7. Chaque excluded item doit avoir une `reason` valide et un `score` 1-10
