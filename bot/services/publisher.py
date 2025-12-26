@@ -6,6 +6,8 @@ Handles building embeds, generating card images, and publishing to Discord chann
 
 import io
 import logging
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 import discord
@@ -26,50 +28,58 @@ from services.embed_builder import (
 logger = logging.getLogger(__name__)
 
 
-def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discord.Embed]:
-    """Build detailed Discord embeds from daily digest content.
+class DigestType(str, Enum):
+    """Digest type enumeration."""
 
-    Creates separate embeds for each category with full article details.
-    Uses embed_builder module for consistent styling.
+    DAILY = "daily"
+    WEEKLY = "weekly"
+
+
+@dataclass
+class DigestConfig:
+    """Configuration for digest publication."""
+
+    digest_type: DigestType
+    digest_id: int
+    content: dict[str, Any]
+    channel_id: int | None = None
+    # Daily-specific
+    digest_date: str | None = None
+    # Weekly-specific
+    week_start: str | None = None
+    week_end: str | None = None
+    theme: str | None = None
+
+
+def build_daily_embeds(content: dict[str, Any]) -> list[discord.Embed]:
+    """Build detailed Discord embeds from daily digest content.
 
     Args:
         content: The digest content (headlines, research, industry, watching, metadata)
-        digest_date: The date string for the digest (unused, kept for API compatibility)
 
     Returns:
         List of Discord embeds (one per category)
     """
     embeds = []
 
-    headlines = content.get("headlines", [])
-    if headlines:
-        embeds.append(build_headlines_embed(headlines))
-
-    research = content.get("research", [])
-    if research:
-        embeds.append(build_research_embed(research))
-
-    industry = content.get("industry", [])
-    if industry:
-        embeds.append(build_industry_embed(industry))
-
-    watching = content.get("watching", [])
-    if watching:
-        embeds.append(build_watching_embed(watching))
+    for category, builder in [
+        ("headlines", build_headlines_embed),
+        ("research", build_research_embed),
+        ("industry", build_industry_embed),
+        ("watching", build_watching_embed),
+    ]:
+        items = content.get(category, [])
+        if items:
+            embeds.append(builder(items))
 
     return embeds
 
 
-def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str) -> list[discord.Embed]:
+def build_weekly_embeds(content: dict[str, Any]) -> list[discord.Embed]:
     """Build Discord embeds from weekly digest content.
-
-    Creates separate embeds for summary, trends, and top stories.
-    Uses embed_builder module for consistent styling.
 
     Args:
         content: The digest content (summary, trends, top_stories, metadata)
-        week_start: Start date string (unused, kept for API compatibility)
-        week_end: End date string (unused, kept for API compatibility)
 
     Returns:
         List of Discord embeds
@@ -100,6 +110,124 @@ def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str)
     return embeds
 
 
+async def _generate_card(config: DigestConfig) -> discord.File | None:
+    """Generate card image for a digest.
+
+    Args:
+        config: Digest configuration
+
+    Returns:
+        Discord File with card image, or None if generation failed
+    """
+    try:
+        if config.digest_type == DigestType.DAILY:
+            card_bytes = await generate_daily_card_async(config.content, config.digest_date)
+            filename = "ai-news-daily.png"
+        else:
+            card_bytes = await generate_weekly_card_async(
+                config.content, config.week_start, config.week_end, config.theme
+            )
+            filename = "ai-news-weekly.png"
+
+        logger.info("Generated %s card image: %d bytes", config.digest_type.value, len(card_bytes))
+        return discord.File(io.BytesIO(card_bytes), filename=filename)
+
+    except Exception as e:
+        logger.warning("Failed to generate card image: %s", e)
+        return None
+
+
+async def _get_channel(bot: discord.Client, config: DigestConfig) -> discord.TextChannel:
+    """Get the target channel for publication.
+
+    Args:
+        bot: Discord bot instance
+        config: Digest configuration
+
+    Returns:
+        Discord TextChannel
+
+    Raises:
+        ValueError: If channel not found or invalid
+    """
+    if config.digest_type == DigestType.DAILY:
+        default_channel = settings.daily_channel_id
+        channel_name = "DAILY_CHANNEL_ID"
+    else:
+        default_channel = settings.weekly_channel_id
+        channel_name = "WEEKLY_CHANNEL_ID"
+
+    target_channel_id = config.channel_id or default_channel
+
+    if not target_channel_id:
+        raise ValueError(f"No channel ID provided and {channel_name} not configured")
+
+    channel = bot.get_channel(target_channel_id)
+    if not channel:
+        raise ValueError(f"Channel {target_channel_id} not found")
+
+    if not isinstance(channel, discord.TextChannel):
+        raise ValueError(f"Channel {target_channel_id} is not a text channel")
+
+    return channel
+
+
+async def _mark_posted(config: DigestConfig) -> None:
+    """Mark digest as posted in database.
+
+    Args:
+        config: Digest configuration
+    """
+    try:
+        if config.digest_type == DigestType.DAILY:
+            await mark_daily_digest_posted(config.digest_id)
+        else:
+            await mark_weekly_digest_posted(config.digest_id)
+        logger.info("Marked %s digest %d as posted", config.digest_type.value, config.digest_id)
+    except Exception as e:
+        logger.warning("Failed to mark digest %d as posted: %s", config.digest_id, e)
+
+
+async def publish_digest(bot: discord.Client, config: DigestConfig) -> dict[str, Any]:
+    """Publish a digest to Discord.
+
+    Unified function for publishing both daily and weekly digests.
+
+    Args:
+        bot: The Discord bot instance
+        config: Digest configuration
+
+    Returns:
+        Publication result with message_id, channel_id, success status
+    """
+    channel = await _get_channel(bot, config)
+
+    # Generate and send card image
+    card_file = await _generate_card(config)
+    if card_file:
+        await channel.send(file=card_file)
+
+    # Build and send embeds
+    if config.digest_type == DigestType.DAILY:
+        embeds = build_daily_embeds(config.content)
+    else:
+        embeds = build_weekly_embeds(config.content)
+
+    message = await channel.send(embeds=embeds[:10])
+
+    # Update database
+    await _mark_posted(config)
+
+    return {
+        "status": "success",
+        "message_id": str(message.id),
+        "channel_id": str(channel.id),
+        "posted_to_discord": True,
+    }
+
+
+# Convenience functions for backward compatibility
+
 async def publish_daily_digest(
     bot: discord.Client,
     digest_id: int,
@@ -119,49 +247,14 @@ async def publish_daily_digest(
     Returns:
         Publication result with message_id, channel_id, success status
     """
-    target_channel_id = channel_id or settings.daily_channel_id
-
-    if not target_channel_id:
-        raise ValueError("No channel ID provided and DAILY_CHANNEL_ID not configured")
-
-    channel = bot.get_channel(target_channel_id)
-    if not channel:
-        raise ValueError(f"Channel {target_channel_id} not found")
-
-    if not isinstance(channel, discord.TextChannel):
-        raise ValueError(f"Channel {target_channel_id} is not a text channel")
-
-    # Generate card image
-    card_file = None
-    try:
-        card_bytes = await generate_daily_card_async(content, digest_date)
-        card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-daily.png")
-        logger.info("Generated daily card image: %d bytes", len(card_bytes))
-    except Exception as e:
-        logger.warning("Failed to generate card image, continuing without: %s", e)
-
-    embeds = build_daily_embeds(content, digest_date)
-
-    # Send card image first (if available), then embeds separately
-    if card_file:
-        await channel.send(file=card_file)
-
-    # Send detailed embeds (Discord allows max 10 embeds per message)
-    message = await channel.send(embeds=embeds[:10])
-
-    # Update database
-    try:
-        await mark_daily_digest_posted(digest_id)
-        logger.info("Marked daily digest %d as posted", digest_id)
-    except Exception as e:
-        logger.warning("Failed to mark digest %d as posted: %s", digest_id, e)
-
-    return {
-        "status": "success",
-        "message_id": str(message.id),
-        "channel_id": str(channel.id),
-        "posted_to_discord": True,
-    }
+    config = DigestConfig(
+        digest_type=DigestType.DAILY,
+        digest_id=digest_id,
+        content=content,
+        digest_date=digest_date,
+        channel_id=channel_id,
+    )
+    return await publish_digest(bot, config)
 
 
 async def publish_weekly_digest(
@@ -187,46 +280,13 @@ async def publish_weekly_digest(
     Returns:
         Publication result with message_id, channel_id, success status
     """
-    target_channel_id = channel_id or settings.weekly_channel_id
-
-    if not target_channel_id:
-        raise ValueError("No channel ID provided and WEEKLY_CHANNEL_ID not configured")
-
-    channel = bot.get_channel(target_channel_id)
-    if not channel:
-        raise ValueError(f"Channel {target_channel_id} not found")
-
-    if not isinstance(channel, discord.TextChannel):
-        raise ValueError(f"Channel {target_channel_id} is not a text channel")
-
-    # Generate card image
-    card_file = None
-    try:
-        card_bytes = await generate_weekly_card_async(content, week_start, week_end, theme)
-        card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-weekly.png")
-        logger.info("Generated weekly card image: %d bytes", len(card_bytes))
-    except Exception as e:
-        logger.warning("Failed to generate weekly card image, continuing without: %s", e)
-
-    embeds = build_weekly_embeds(content, week_start, week_end)
-
-    # Send card image first (if available), then embeds separately
-    if card_file:
-        await channel.send(file=card_file)
-
-    # Send detailed embeds (Discord allows max 10 embeds per message)
-    message = await channel.send(embeds=embeds[:10])
-
-    # Update database
-    try:
-        await mark_weekly_digest_posted(digest_id)
-        logger.info("Marked weekly digest %d as posted", digest_id)
-    except Exception as e:
-        logger.warning("Failed to mark weekly digest %d as posted: %s", digest_id, e)
-
-    return {
-        "status": "success",
-        "message_id": str(message.id),
-        "channel_id": str(channel.id),
-        "posted_to_discord": True,
-    }
+    config = DigestConfig(
+        digest_type=DigestType.WEEKLY,
+        digest_id=digest_id,
+        content=content,
+        week_start=week_start,
+        week_end=week_end,
+        channel_id=channel_id,
+        theme=theme,
+    )
+    return await publish_digest(bot, config)
