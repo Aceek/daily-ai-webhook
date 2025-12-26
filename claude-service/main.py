@@ -58,8 +58,8 @@ class Settings(BaseSettings):
     digests_path: str = "/app/logs/digests"
 
     # Allowed tools for agentic workflow
-    # MCP tools: submit_digest, submit_weekly_digest, get_categories, get_articles, get_article_stats
-    allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest,mcp__submit-digest__submit_weekly_digest,mcp__submit-digest__get_categories,mcp__submit-digest__get_articles,mcp__submit-digest__get_article_stats"
+    # MCP tools: submit_digest, submit_weekly_digest, get_categories, get_articles, get_article_stats, get_recent_headlines
+    allowed_tools: str = "Read,WebSearch,WebFetch,Write,Task,mcp__submit-digest__submit_digest,mcp__submit-digest__submit_weekly_digest,mcp__submit-digest__get_categories,mcp__submit-digest__get_articles,mcp__submit-digest__get_article_stats,mcp__submit-digest__get_recent_headlines"
 
     # Database connection (uses DATABASE_URL without prefix)
     database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
