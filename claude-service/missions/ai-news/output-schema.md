@@ -63,20 +63,36 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
       "deep_dive": null
     }
   ],
+  "excluded": [
+    {
+      "url": "https://...",
+      "title": "Article non sélectionné",
+      "source": "Source",
+      "category": "industry",
+      "reason": "low_priority",
+      "score": 4
+    }
+  ],
   "metadata": {
     "execution_id": "abc123",
-    "articles_analyzed": 24,
+    "articles_analyzed": 30,
     "web_searches": 4,
     "fact_checks": 1,
     "deep_dives": 1,
     "research_doc": "/path/to/research.md",
-    "total_news_included": 6,
-    "total_news_excluded": 4
+    "selected_count": 6,
+    "excluded_count": 24,
+    "exclusion_breakdown": {
+      "off_topic": 10,
+      "duplicate": 2,
+      "low_priority": 8,
+      "outdated": 4
+    }
   }
 }
 ```
 
-## Champs requis par news item
+## Champs requis par news item (selected)
 
 | Champ | Type | Contraintes |
 |-------|------|-------------|
@@ -84,13 +100,33 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
 | `summary` | string | Max 300 chars, 2-3 phrases |
 | `url` | string | URL valide, source primaire |
 | `source` | string | Nom lisible |
-| `category` | string | `headlines`, `research`, `industry`, ou `watching` |
+| `category` | string | Catégorie existante ou nouvelle |
 | `confidence` | string | `high` ou `medium` uniquement |
 | `emoji` | string | Emoji unique représentant le sujet |
 | `importance` | string | `breaking`, `major`, ou `standard` |
 | `deep_dive` | object/null | Résultat topic-diver si applicable |
 
-## Catégories
+## Champs requis par excluded item
+
+| Champ | Type | Contraintes |
+|-------|------|-------------|
+| `url` | string | URL de l'article |
+| `title` | string | Titre de l'article |
+| `source` | string | Nom de la source (optionnel, défaut: "unknown") |
+| `category` | string | Catégorie assignée |
+| `reason` | string | `off_topic`, `duplicate`, `low_priority`, ou `outdated` |
+| `score` | int | Score de pertinence 1-10 |
+
+## Exclusion Reasons
+
+| Raison | Signification | Quand l'utiliser |
+|--------|---------------|------------------|
+| `off_topic` | Pas lié AI/ML | Article généraliste tech, crypto, gaming non-AI |
+| `duplicate` | Sujet déjà couvert | Même news d'une autre source, update mineure |
+| `low_priority` | Pertinent mais pas assez important | News mineure, pas d'impact significatif |
+| `outdated` | >48h ou info dépassée | Vieille news, info déjà obsolète |
+
+## Catégories (sections du digest)
 
 | Catégorie | Contenu attendu |
 |-----------|-----------------|
@@ -159,4 +195,6 @@ Si un topic-diver a été utilisé :
 2. `metadata.research_doc` doit pointer vers un fichier existant
 3. Tous les URLs doivent être valides
 4. Pas de doublons (même URL ou titre très similaire)
-5. Total items recommandé: 4-8
+5. Total items selected recommandé: 4-8
+6. **TOUS les articles analysés doivent être soumis** (selected OU excluded)
+7. Chaque excluded item doit avoir une `reason` valide et un `score` 1-10
