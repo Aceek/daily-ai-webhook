@@ -15,6 +15,60 @@ from services.database import mark_daily_digest_posted, mark_weekly_digest_poste
 
 logger = logging.getLogger(__name__)
 
+# Visual constants
+SECTION_EMOJIS = {
+    "headlines": "📰",
+    "research": "🔬",
+    "industry": "🏢",
+    "watching": "👀",
+}
+
+CONFIDENCE_BADGES = {
+    "high": "🟢",
+    "medium": "🟡",
+}
+
+DIRECTION_EMOJIS = {
+    "rising": "📈",
+    "stable": "➡️",
+    "declining": "📉",
+}
+
+DEFAULT_ITEM_EMOJI = "📌"
+
+
+def _format_news_item(item: dict[str, Any], show_summary: bool = True) -> str:
+    """Format a single news item for display.
+
+    Args:
+        item: The news item dict
+        show_summary: Whether to include the summary
+
+    Returns:
+        Formatted string for the item
+    """
+    emoji = item.get("emoji", DEFAULT_ITEM_EMOJI)
+    confidence = item.get("confidence", "medium")
+    confidence_badge = CONFIDENCE_BADGES.get(confidence, "")
+    title = item.get("title", "")[:100]
+    url = item.get("url", "")
+    source = item.get("source", "")
+    summary = item.get("summary", "")[:150]
+
+    # Build the line
+    if url:
+        title_line = f"{confidence_badge} {emoji} **[{title}]({url})**"
+    else:
+        title_line = f"{confidence_badge} {emoji} **{title}**"
+
+    if source:
+        title_line += f" — *{source}*"
+
+    if show_summary and summary:
+        return f"{title_line}\n{summary}\n\n"
+    else:
+        return f"{title_line}\n"
+
 
 def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discord.Embed]:
     """Build Discord embeds from daily digest content.
@@ -28,28 +82,23 @@ def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discor
     """
     embeds = []
 
-    # Main embed with headlines
+    # Main embed
     main_embed = discord.Embed(
-        title=f"AI News Daily Digest - {digest_date}",
+        title=f"📰 AI News Daily — {digest_date}",
         color=discord.Color.blue(),
         timestamp=datetime.utcnow(),
     )
 
-    # Add headlines
+    # Add headlines section
     headlines = content.get("headlines", [])
     if headlines:
         headlines_text = ""
         for item in headlines[:5]:
-            title = item.get("title", "")[:100]
-            summary = item.get("summary", "")[:150]
-            url = item.get("url", "")
-            if url:
-                headlines_text += f"**[{title}]({url})**\n{summary}\n\n"
-            else:
-                headlines_text += f"**{title}**\n{summary}\n\n"
+            headlines_text += _format_news_item(item, show_summary=True)
 
+        section_emoji = SECTION_EMOJIS.get("headlines", "📰")
         main_embed.add_field(
-            name="Headlines",
+            name=f"{section_emoji} Headlines",
             value=headlines_text[:1024] or "No headlines",
             inline=False,
         )
@@ -59,15 +108,11 @@ def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discor
     if research:
         research_text = ""
         for item in research[:3]:
-            title = item.get("title", "")[:80]
-            url = item.get("url", "")
-            if url:
-                research_text += f"- [{title}]({url})\n"
-            else:
-                research_text += f"- {title}\n"
+            research_text += _format_news_item(item, show_summary=False)
 
+        section_emoji = SECTION_EMOJIS.get("research", "🔬")
         main_embed.add_field(
-            name="Research",
+            name=f"{section_emoji} Research",
             value=research_text[:1024] or "No research items",
             inline=False,
         )
@@ -77,15 +122,11 @@ def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discor
     if industry:
         industry_text = ""
         for item in industry[:3]:
-            title = item.get("title", "")[:80]
-            url = item.get("url", "")
-            if url:
-                industry_text += f"- [{title}]({url})\n"
-            else:
-                industry_text += f"- {title}\n"
+            industry_text += _format_news_item(item, show_summary=False)
 
+        section_emoji = SECTION_EMOJIS.get("industry", "🏢")
         main_embed.add_field(
-            name="Industry",
+            name=f"{section_emoji} Industry",
             value=industry_text[:1024] or "No industry items",
             inline=False,
         )
@@ -95,11 +136,11 @@ def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discor
     if watching:
         watching_text = ""
         for item in watching[:3]:
-            title = item.get("title", "")[:80]
-            watching_text += f"- {title}\n"
+            watching_text += _format_news_item(item, show_summary=False)
 
+        section_emoji = SECTION_EMOJIS.get("watching", "👀")
         main_embed.add_field(
-            name="Watching",
+            name=f"{section_emoji} Watching",
             value=watching_text[:1024] or "No items to watch",
             inline=False,
         )
@@ -109,7 +150,7 @@ def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discor
     articles_analyzed = metadata.get("articles_analyzed", 0)
     web_searches = metadata.get("web_searches", 0)
     main_embed.set_footer(
-        text=f"Analyzed {articles_analyzed} articles | {web_searches} web searches"
+        text=f"🤖 Analyzed {articles_analyzed} articles | {web_searches} web searches"
     )
 
     embeds.append(main_embed)
@@ -131,8 +172,8 @@ def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str)
 
     # Main embed with summary
     main_embed = discord.Embed(
-        title="AI News Weekly Digest",
-        description=f"**{week_start} to {week_end}**",
+        title="📊 AI News Weekly",
+        description=f"**{week_start} → {week_end}**",
         color=discord.Color.purple(),
         timestamp=datetime.utcnow(),
     )
@@ -143,7 +184,7 @@ def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str)
         if len(summary) > 1024:
             summary = summary[:1021] + "..."
         main_embed.add_field(
-            name="Executive Summary",
+            name="📋 Executive Summary",
             value=summary,
             inline=False,
         )
@@ -155,14 +196,12 @@ def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str)
         for trend in trends[:5]:
             name = trend.get("name", "")
             direction = trend.get("direction", "")
-            direction_emoji = {"rising": "rising", "stable": "stable", "declining": "declining"}.get(
-                direction, ""
-            )
+            direction_emoji = DIRECTION_EMOJIS.get(direction, "")
             description = trend.get("description", "")[:100]
-            trends_text += f"**{name}** ({direction_emoji})\n{description}\n\n"
+            trends_text += f"{direction_emoji} **{name}**\n{description}\n\n"
 
         main_embed.add_field(
-            name="Key Trends",
+            name="📈 Key Trends",
             value=trends_text[:1024] or "No trends identified",
             inline=False,
         )
@@ -173,24 +212,29 @@ def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str)
     top_stories = content.get("top_stories", [])
     if top_stories:
         stories_embed = discord.Embed(
-            title="Top Stories of the Week",
+            title="🏆 Top Stories of the Week",
             color=discord.Color.purple(),
         )
 
         for i, story in enumerate(top_stories[:5], 1):
-            title = story.get("title", "")[:100]
+            emoji = story.get("emoji", DEFAULT_ITEM_EMOJI)
+            title = story.get("title", "")[:80]
             summary = story.get("summary", "")[:200]
             url = story.get("url", "")
             impact = story.get("impact", "")[:100]
 
+            # Number emoji for ranking
+            number_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+            number_emoji = number_emojis[i - 1] if i <= 5 else f"{i}."
+
             if url:
-                field_name = f"{i}. [{title}]({url})"
+                field_name = f"{number_emoji} {emoji} [{title}]({url})"
             else:
-                field_name = f"{i}. {title}"
+                field_name = f"{number_emoji} {emoji} {title}"
 
             field_value = summary
             if impact:
-                field_value += f"\n*Impact: {impact}*"
+                field_value += f"\n💡 *{impact}*"
 
             stories_embed.add_field(
                 name=field_name[:256],
@@ -203,7 +247,7 @@ def build_weekly_embeds(content: dict[str, Any], week_start: str, week_end: str)
     # Add metadata footer to last embed
     metadata = content.get("metadata", {})
     articles_analyzed = metadata.get("articles_analyzed", 0)
-    embeds[-1].set_footer(text=f"Based on {articles_analyzed} articles")
+    embeds[-1].set_footer(text=f"🤖 Based on {articles_analyzed} articles")
 
     return embeds
 

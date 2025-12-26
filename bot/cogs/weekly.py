@@ -104,7 +104,10 @@ class WeeklyCog(commands.Cog):
                 )
                 return
 
-            embeds = self._build_weekly_embeds(digest)
+            content = digest["content"]
+            week_start = str(digest["week_start"])
+            week_end = str(digest["week_end"])
+            embeds = build_weekly_embeds(content, week_start, week_end)
             await interaction.followup.send(embeds=embeds)
 
         except Exception as e:
@@ -194,7 +197,7 @@ class WeeklyCog(commands.Cog):
 
             # Add theme indicator to first embed if thematic
             if theme:
-                embeds[0].title = f"AI News Weekly: {theme.title()}"
+                embeds[0].title = f"📊 AI News Weekly: {theme.title()}"
 
             # Edit the status message with the actual content
             await status_msg.edit(content=None, embeds=embeds)
@@ -229,101 +232,6 @@ class WeeklyCog(commands.Cog):
             await status_msg.edit(
                 content="An unexpected error occurred. Please try again later."
             )
-
-    def _build_weekly_embeds(self, digest: dict) -> list[discord.Embed]:
-        """Build Discord embeds from weekly digest data.
-
-        Args:
-            digest: The digest data from database
-
-        Returns:
-            List of Discord embeds
-        """
-        content = digest["content"]
-        week_start = digest["week_start"]
-        week_end = digest["week_end"]
-
-        embeds = []
-
-        # Main embed with summary
-        main_embed = discord.Embed(
-            title="AI News Weekly Digest",
-            description=f"**{week_start} to {week_end}**",
-            color=discord.Color.purple(),
-            timestamp=digest["generated_at"],
-        )
-
-        # Add summary
-        summary = content.get("summary", "")
-        if summary:
-            # Truncate summary if too long
-            if len(summary) > 1024:
-                summary = summary[:1021] + "..."
-            main_embed.add_field(
-                name="Executive Summary",
-                value=summary,
-                inline=False,
-            )
-
-        # Add trends
-        trends = content.get("trends", [])
-        if trends:
-            trends_text = ""
-            for trend in trends[:5]:
-                name = trend.get("name", "")
-                direction = trend.get("direction", "")
-                direction_emoji = {"rising": "rising", "stable": "stable", "declining": "declining"}.get(
-                    direction, ""
-                )
-                description = trend.get("description", "")[:100]
-                trends_text += f"**{name}** ({direction_emoji})\n{description}\n\n"
-
-            main_embed.add_field(
-                name="Key Trends",
-                value=trends_text[:1024] or "No trends identified",
-                inline=False,
-            )
-
-        embeds.append(main_embed)
-
-        # Second embed for top stories if we have them
-        top_stories = content.get("top_stories", [])
-        if top_stories:
-            stories_embed = discord.Embed(
-                title="Top Stories of the Week",
-                color=discord.Color.purple(),
-            )
-
-            for i, story in enumerate(top_stories[:5], 1):
-                title = story.get("title", "")[:100]
-                summary = story.get("summary", "")[:200]
-                url = story.get("url", "")
-                impact = story.get("impact", "")[:100]
-
-                if url:
-                    field_name = f"{i}. [{title}]({url})"
-                else:
-                    field_name = f"{i}. {title}"
-
-                field_value = summary
-                if impact:
-                    field_value += f"\n*Impact: {impact}*"
-
-                stories_embed.add_field(
-                    name=field_name[:256],
-                    value=field_value[:1024],
-                    inline=False,
-                )
-
-            embeds.append(stories_embed)
-
-        # Add metadata footer to last embed
-        metadata = content.get("metadata", {})
-        articles_analyzed = metadata.get("articles_analyzed", 0)
-        embeds[-1].set_footer(text=f"Based on {articles_analyzed} articles")
-
-        return embeds
-
 
 async def setup(bot: commands.Bot) -> None:
     """Setup function for the cog."""

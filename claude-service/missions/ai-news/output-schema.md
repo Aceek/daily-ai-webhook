@@ -19,6 +19,8 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
       "source": "Nom de la source (ex: Anthropic Blog)",
       "category": "headlines",
       "confidence": "high",
+      "emoji": "🚀",
+      "importance": "major",
       "deep_dive": null
     }
   ],
@@ -30,6 +32,8 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
       "source": "arXiv / Institution",
       "category": "research",
       "confidence": "high",
+      "emoji": "🧠",
+      "importance": "standard",
       "deep_dive": null
     }
   ],
@@ -41,6 +45,8 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
       "source": "Source",
       "category": "industry",
       "confidence": "medium",
+      "emoji": "💼",
+      "importance": "standard",
       "deep_dive": null
     }
   ],
@@ -52,6 +58,8 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
       "source": "Source",
       "category": "watching",
       "confidence": "medium",
+      "emoji": "👀",
+      "importance": "standard",
       "deep_dive": null
     }
   ],
@@ -78,6 +86,8 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
 | `source` | string | Nom lisible |
 | `category` | string | `headlines`, `research`, `industry`, ou `watching` |
 | `confidence` | string | `high` ou `medium` uniquement |
+| `emoji` | string | Emoji unique représentant le sujet |
+| `importance` | string | `breaking`, `major`, ou `standard` |
 | `deep_dive` | object/null | Résultat topic-diver si applicable |
 
 ## Catégories
@@ -97,6 +107,36 @@ Le JSON soumis via `submit_digest` doit respecter ce schéma.
 | `medium` | Source réputée non vérifiée directement | TechCrunch, Reddit populaire, etc. |
 
 **Note:** Les news `confidence: low` ne doivent PAS apparaître dans le digest.
+
+## Emoji
+
+Choisis un emoji unique qui représente le sujet de la news. L'emoji sera affiché devant le titre dans Discord.
+
+| Contexte | Exemples d'emojis |
+|----------|-------------------|
+| Nouveau modèle/release | 🚀 🎉 ✨ |
+| Recherche/paper | 🧠 📊 🔬 |
+| Financement/business | 💰 💼 📈 |
+| Acquisition/M&A | 🤝 🏢 |
+| Régulation/légal | ⚖️ 📜 🏛️ |
+| Open source | 🌐 🔓 |
+| Sécurité/safety | 🛡️ 🔒 |
+| Infrastructure | ⚡ 🖥️ 🌍 |
+| Agents/autonomie | 🤖 🦾 |
+
+**Règle:** Un seul emoji par news. Choisis celui qui capture le mieux l'essence du sujet.
+
+## Importance
+
+Indique le niveau d'importance de la news pour aider au formatage visuel.
+
+| Niveau | Signification | Quand l'utiliser |
+|--------|---------------|------------------|
+| `breaking` | Breaking news majeure | Annonces inattendues, changements majeurs de l'industrie |
+| `major` | News importante | Releases de modèles, acquisitions significatives, régulations |
+| `standard` | News régulière | Mises à jour produit, papers, tendances |
+
+**Note:** Utilise `breaking` avec parcimonie (0-1 par digest max).
 
 ## Deep Dive format
 
