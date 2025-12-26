@@ -55,8 +55,51 @@ get_categories(mission_id="{mission}")
 3. Utilise les sub-agents si nécessaire (Task)
 4. Écris le document de recherche (Write) au chemin `research_path`
 
-### Étape 3 : Finalisation Daily
+### Étape 3 : Classification et Archivage Complet
+
+**IMPORTANT:** Tu dois classifier TOUS les articles analysés en deux groupes:
+
+**Selected** (4-8 articles pour le digest):
+- Articles retenus pour publication Discord
+- Format complet avec summary, emoji, importance, etc.
+
+**Excluded** (tous les autres articles):
+- Articles NON retenus mais archivés pour référence
+- Format minimal: url, title, source, category, reason, score
+
+**Raisons d'exclusion valides:**
+| Raison | Quand l'utiliser |
+|--------|------------------|
+| `off_topic` | Pas lié AI/ML (tech généraliste, crypto, gaming) |
+| `duplicate` | Même sujet couvert par un autre article sélectionné |
+| `low_priority` | Pertinent mais pas assez important aujourd'hui |
+| `outdated` | >48h ou information dépassée |
+
+**Score de pertinence (1-10):**
+- 1-3: Peu pertinent (off_topic)
+- 4-5: Pertinent mais faible priorité
+- 6-7: Bon article, non retenu pour raison spécifique
+- 8-10: Très pertinent (devrait être selected)
+
+### Étape 4 : Finalisation Daily
 **OBLIGATOIRE:** Utilise `submit_digest` pour soumettre le résultat final.
+
+Le tool attend TOUS les articles:
+```
+submit_digest(
+  execution_id="...",
+  headlines=[...],      # Selected - section headlines
+  research=[...],       # Selected - section research
+  industry=[...],       # Selected - section industry
+  watching=[...],       # Selected - section watching
+  excluded=[            # TOUS les articles non sélectionnés
+    {"url": "...", "title": "...", "source": "...", "category": "...", "reason": "off_topic", "score": 3},
+    {"url": "...", "title": "...", "source": "...", "category": "...", "reason": "low_priority", "score": 5},
+    ...
+  ],
+  metadata={...}
+)
+```
 
 ---
 
@@ -150,13 +193,14 @@ get_articles(mission_id="{mission}", date_from="{week_start}", date_to="{week_en
 6. **TOUJOURS** effectuer minimum 3 recherches web (WebSearch)
 7. **TOUJOURS** écrire le document de recherche AVANT de soumettre
 8. **TOUJOURS** utiliser `submit_digest` pour le résultat final
-9. **LIMITER** les sub-agents (max 2 fact-checks, max 2 deep-dives)
+9. **TOUJOURS** soumettre TOUS les articles (selected + excluded) pour archivage complet
+10. **LIMITER** les sub-agents (max 2 fact-checks, max 2 deep-dives)
 
 ### Weekly spécifique
-10. **TOUJOURS** utiliser les MCP DB tools pour récupérer les données
-11. **TOUJOURS** identifier au moins 2 tendances
-12. **TOUJOURS** inclure au moins 3 top stories
-13. **TOUJOURS** utiliser `submit_weekly_digest` (PAS submit_digest!)
+11. **TOUJOURS** utiliser les MCP DB tools pour récupérer les données
+12. **TOUJOURS** identifier au moins 2 tendances
+13. **TOUJOURS** inclure au moins 3 top stories
+14. **TOUJOURS** utiliser `submit_weekly_digest` (PAS submit_digest!)
 
 ## Exemples de démarrage
 
