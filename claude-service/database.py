@@ -85,6 +85,15 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+def get_engine():
+    """Get the database engine.
+
+    Returns:
+        The SQLAlchemy async engine, or None if not initialized.
+    """
+    return _engine
+
+
 async def seed_missions() -> None:
     """Seed default missions if they don't exist."""
     from sqlmodel import select

@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from database import close_db, init_db, seed_missions
+from database import close_db, get_engine, get_session, init_db, seed_missions
 
 from execution_logger import (
     DiscordChannelLog,
@@ -290,6 +290,41 @@ class WorkflowLogResponse(BaseModel):
     success: bool
     log_file: str | None = None
     error: str | None = None
+
+
+class CheckUrlsRequest(BaseModel):
+    """Request body for the /check-urls endpoint."""
+
+    urls: list[str] = Field(
+        ...,
+        description="List of URLs to check for duplicates",
+        min_length=1,
+    )
+    mission_id: str = Field(
+        default="ai-news",
+        description="Mission ID to check against",
+    )
+    days: int = Field(
+        default=7,
+        ge=1,
+        le=30,
+        description="Number of days to look back for duplicates",
+    )
+
+
+class CheckUrlsResponse(BaseModel):
+    """Response body for the /check-urls endpoint."""
+
+    new_urls: list[str] = Field(
+        default_factory=list,
+        description="URLs that don't exist in the database",
+    )
+    duplicate_urls: list[str] = Field(
+        default_factory=list,
+        description="URLs that already exist in the database",
+    )
+    total_checked: int = 0
+    duplicates_found: int = 0
 
 
 class ClaudeResult(BaseModel):
@@ -1047,6 +1082,86 @@ async def log_workflow(request: WorkflowLogRequest) -> WorkflowLogResponse:
         return WorkflowLogResponse(
             success=False,
             error=str(e),
+        )
+
+
+@app.post("/check-urls", response_model=CheckUrlsResponse)
+async def check_urls(request: CheckUrlsRequest) -> CheckUrlsResponse:
+    """Check which URLs already exist in the database.
+
+    Used by n8n to filter out duplicate articles before sending
+    to Claude for analysis. Only checks URLs from the specified
+    time window.
+
+    Args:
+        request: Request containing URLs to check.
+
+    Returns:
+        Response with new and duplicate URL lists.
+    """
+    from sqlalchemy import text
+
+    logger.info(
+        "Checking %d URLs for duplicates (mission=%s, days=%d)",
+        len(request.urls),
+        request.mission_id,
+        request.days,
+    )
+
+    engine = get_engine()
+    if not engine:
+        logger.warning("Database not available, returning all URLs as new")
+        return CheckUrlsResponse(
+            new_urls=request.urls,
+            duplicate_urls=[],
+            total_checked=len(request.urls),
+            duplicates_found=0,
+        )
+
+    try:
+        async with engine.connect() as conn:
+            # Query existing URLs from the last N days
+            # Note: PostgreSQL INTERVAL requires special handling for dynamic values
+            result = await conn.execute(
+                text("""
+                    SELECT url FROM articles
+                    WHERE mission_id = :mission_id
+                    AND created_at >= NOW() - make_interval(days => :days)
+                    AND url = ANY(:urls)
+                """),
+                {
+                    "mission_id": request.mission_id,
+                    "days": request.days,
+                    "urls": request.urls,
+                },
+            )
+            existing_urls = {row[0] for row in result.fetchall()}
+
+        # Separate new from duplicates
+        new_urls = [url for url in request.urls if url not in existing_urls]
+        duplicate_urls = [url for url in request.urls if url in existing_urls]
+
+        logger.info(
+            "URL check complete: %d new, %d duplicates",
+            len(new_urls),
+            len(duplicate_urls),
+        )
+
+        return CheckUrlsResponse(
+            new_urls=new_urls,
+            duplicate_urls=duplicate_urls,
+            total_checked=len(request.urls),
+            duplicates_found=len(duplicate_urls),
+        )
+
+    except Exception as e:
+        logger.error("Error checking URLs: %s", e)
+        # On error, return all URLs as new (fail-safe)
+        return CheckUrlsResponse(
+            new_urls=request.urls,
+            duplicate_urls=[],
+            total_checked=len(request.urls),
+            duplicates_found=0,
         )
 
 
