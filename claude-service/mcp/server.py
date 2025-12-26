@@ -176,7 +176,7 @@ def get_categories(
                     JOIN articles a ON a.category_id = c.id
                     WHERE c.mission_id = %s
                       AND a.created_at >= %s
-                      AND a.created_at <= %s
+                      AND a.created_at < %s::date + INTERVAL '1 day'
                     ORDER BY c.name
                     """,
                     (mission_id, date_from, date_to),
@@ -260,7 +260,8 @@ def get_articles(
                 params.append(date_from)
 
             if date_to:
-                query += " AND a.created_at <= %s"
+                # Use < date_to + 1 day to include all articles from date_to
+                query += " AND a.created_at < %s::date + INTERVAL '1 day'"
                 params.append(date_to)
 
             query += " ORDER BY a.created_at DESC LIMIT %s"
@@ -330,7 +331,7 @@ def get_article_stats(
                 """
                 SELECT COUNT(*) as total
                 FROM articles
-                WHERE mission_id = %s AND created_at >= %s AND created_at <= %s
+                WHERE mission_id = %s AND created_at >= %s AND created_at < %s::date + INTERVAL '1 day'
                 """,
                 (mission_id, date_from, date_to),
             )
@@ -342,7 +343,7 @@ def get_article_stats(
                 SELECT c.name, COUNT(*) as count
                 FROM articles a
                 LEFT JOIN categories c ON a.category_id = c.id
-                WHERE a.mission_id = %s AND a.created_at >= %s AND a.created_at <= %s
+                WHERE a.mission_id = %s AND a.created_at >= %s AND a.created_at < %s::date + INTERVAL '1 day'
                 GROUP BY c.name
                 ORDER BY count DESC
                 """,
@@ -355,7 +356,7 @@ def get_article_stats(
                 """
                 SELECT source, COUNT(*) as count
                 FROM articles
-                WHERE mission_id = %s AND created_at >= %s AND created_at <= %s
+                WHERE mission_id = %s AND created_at >= %s AND created_at < %s::date + INTERVAL '1 day'
                 GROUP BY source
                 ORDER BY count DESC
                 LIMIT 10
@@ -369,7 +370,7 @@ def get_article_stats(
                 """
                 SELECT DATE(created_at) as day, COUNT(*) as count
                 FROM articles
-                WHERE mission_id = %s AND created_at >= %s AND created_at <= %s
+                WHERE mission_id = %s AND created_at >= %s AND created_at < %s::date + INTERVAL '1 day'
                 GROUP BY DATE(created_at)
                 ORDER BY day
                 """,
