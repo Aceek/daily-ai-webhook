@@ -6,11 +6,42 @@ Supports multi-mission architecture with mission-scoped data.
 """
 
 from datetime import date as DateType, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import JSON
 from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint
+
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+
+class ArticleStatus:
+    """Valid article status values."""
+
+    RAW = "raw"  # Unprocessed article from RSS
+    SELECTED = "selected"  # Selected for daily digest
+    EXCLUDED = "excluded"  # Analyzed but not selected
+
+    ALL = [RAW, SELECTED, EXCLUDED]
+
+
+class ExclusionReason:
+    """Valid exclusion reason values."""
+
+    OFF_TOPIC = "off_topic"  # Not related to AI/ML
+    DUPLICATE = "duplicate"  # Same topic already covered
+    LOW_PRIORITY = "low_priority"  # Relevant but not important enough
+    OUTDATED = "outdated"  # >48h or superseded information
+
+    ALL = [OFF_TOPIC, DUPLICATE, LOW_PRIORITY, OUTDATED]
+
+
+# Type aliases for validation
+ArticleStatusType = Literal["raw", "selected", "excluded"]
+ExclusionReasonType = Literal["off_topic", "duplicate", "low_priority", "outdated"]
 
 
 class Mission(SQLModel, table=True):
@@ -62,6 +93,11 @@ class Article(SQLModel, table=True):
     description: str | None = Field(default=None, max_length=2000)
     pub_date: datetime | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Article status fields (for complete archiving)
+    status: str = Field(default=ArticleStatus.SELECTED, max_length=20, index=True)
+    exclusion_reason: str | None = Field(default=None, max_length=50)
+    relevance_score: int | None = Field(default=None, ge=1, le=10)
 
     # Relationships
     mission: Mission = Relationship(back_populates="articles")
