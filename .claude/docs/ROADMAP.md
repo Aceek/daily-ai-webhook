@@ -78,55 +78,52 @@
 
 ---
 
-## Phase 3: Enrichissement Sources
+## Phase 3: Enrichissement Sources ✅
 
-### 3.1 Vérifier Feeds Labs
-- [ ] Vérifier RSS Anthropic (anthropic.com/news/rss ou /feed)
-- [ ] Vérifier RSS Meta AI (ai.meta.com/blog/feed ou /rss)
-- [ ] Vérifier RSS Mistral (mistral.ai/feed ou /news/rss)
-- [ ] Documenter URLs confirmées ou alternatives (scraping)
+### 3.1 Vérifier Feeds Labs ✅
+- [x] Vérifier RSS Anthropic → Pas de RSS officiel disponible
+- [x] Vérifier RSS Meta AI → Pas de RSS officiel disponible
+- [x] Vérifier RSS Mistral → Pas de RSS officiel disponible
+- [x] Documenter: Labs majeurs n'ont pas de RSS publics (scraping futur si besoin)
 
-### 3.2 Ajouter Sources Tier 1 (Labs)
-- [ ] Ajouter node RSS Anthropic (si dispo) ou HTTP scraping
-- [ ] Ajouter node RSS Meta AI (si dispo) ou HTTP scraping
-- [ ] Ajouter node RSS Mistral (si dispo) ou HTTP scraping
-- [ ] Connecter au Merge Articles
+### 3.2 Ajouter Sources Tier 1 (Labs) ⏭️ SKIPPED
+- [x] Décision: Pas de RSS officiels disponibles pour Anthropic/Meta/Mistral
+- [x] Alternative future: scraping ou monitoring manuel
 
-**Fichier:** `workflows/daily-news-workflow.json`
-
-### 3.3 Ajouter Sources Tier 2 (Research)
-- [ ] Ajouter node RSS arXiv cs.AI `http://arxiv.org/rss/cs.AI`
-- [ ] Ajouter node RSS arXiv cs.LG `http://arxiv.org/rss/cs.LG`
-- [ ] Transformer format arXiv → format Article standard
-- [ ] Connecter au Merge Articles
+### 3.3 Ajouter Sources Tier 2 (Research) ✅
+- [x] Ajouter node RSS arXiv combiné `https://rss.arxiv.org/rss/cs.AI+cs.LG`
+- [x] Format arXiv natif compatible Article standard
+- [x] Connecter au Merge Articles
 
 **Fichier:** `workflows/daily-news-workflow.json`
 
-### 3.4 Ajouter Sources Tier 3 (Media)
-- [ ] Ajouter node RSS The Verge AI `theverge.com/rss/ai-artificial-intelligence/index.xml`
-- [ ] Ajouter node RSS Ars Technica `feeds.arstechnica.com/arstechnica/technology-lab`
-- [ ] Connecter au Merge Articles
+### 3.4 Ajouter Sources Tier 3 (Media) ✅
+- [x] Ajouter node RSS The Verge AI `theverge.com/rss/ai-artificial-intelligence/index.xml`
+- [x] Ajouter node RSS Ars Technica AI `arstechnica.com/ai/feed/`
+- [x] Connecter au Merge Articles
 
 **Fichier:** `workflows/daily-news-workflow.json`
 
-### 3.5 Ajouter Sources Tier 4 (Community)
-- [ ] Ajouter node HTTP Reddit r/LocalLLaMA (API like r/MachineLearning)
-- [ ] Transformer format Reddit → format Article standard
-- [ ] Filtrer score > 100
-- [ ] Connecter au Merge Articles
+### 3.5 Ajouter Sources Tier 4 (Community) ✅
+- [x] Ajouter node HTTP Reddit r/LocalLLaMA (JSON API)
+- [x] Transformer format Reddit → format Article standard
+- [x] Filtrer score > 100
+- [x] Connecter au Merge Articles
 
 **Fichier:** `workflows/daily-news-workflow.json`
 
-### 3.6 Retirer/Modifier Sources
-- [ ] Retirer node RSS MIT Tech Review
-- [ ] Modifier Hacker News: points > 40 (au lieu de 50)
-- [ ] Mettre à jour Merge Articles (numberInputs)
+### 3.6 Retirer/Modifier Sources ✅
+- [x] Retirer node RSS MIT Tech Review (paywalled, limited AI coverage)
+- [x] Modifier Hacker News: points > 40 (au lieu de 50)
+- [x] Mettre à jour Merge Articles (10 inputs)
+- [x] Augmenter limite dedup de 30 à 50 articles
 
 **Fichier:** `workflows/daily-news-workflow.json`
 
-### 3.7 Mise à jour Documentation
-- [ ] Mettre à jour liste sources fiables dans `mission.md`
-- [ ] Ajouter arXiv, Anthropic, Meta AI, Mistral aux sources officielles
+### 3.7 Mise à jour Documentation ✅
+- [x] Mettre à jour liste sources fiables dans `mission.md`
+- [x] Ajouter The Verge AI, Ars Technica AI aux sources fiables
+- [x] Ajouter section sources communautaires avec thresholds
 
 **Fichier:** `claude-service/missions/ai-news/mission.md`
 
@@ -134,7 +131,6 @@
 - [ ] Test workflow avec toutes les sources
 - [ ] Vérifier volume ~50-60 articles après dedup
 - [ ] Vérifier qualité/pertinence nouvelles sources
-- [ ] Test de charge Claude avec volume augmenté
 
 ---
 
@@ -192,13 +188,22 @@ EXCLUSION_REASONS = [
 }
 ```
 
-### URLs Sources à Vérifier
+### URLs Sources Vérifiées (Dec 2025)
 ```
-Anthropic: https://www.anthropic.com/news/rss (à confirmer)
-Meta AI: https://ai.meta.com/blog/rss/ (à confirmer)
-Mistral: https://mistral.ai/news/rss (à confirmer)
-arXiv AI: http://arxiv.org/rss/cs.AI (confirmé)
-arXiv LG: http://arxiv.org/rss/cs.LG (confirmé)
-The Verge: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml (à confirmer)
-Ars Tech: https://feeds.arstechnica.com/arstechnica/technology-lab (confirmé)
+# Labs (pas de RSS officiels)
+Anthropic: ❌ Pas de RSS public
+Meta AI: ❌ Pas de RSS public
+Mistral: ❌ Pas de RSS public
+
+# Research (implémenté)
+arXiv AI+LG: https://rss.arxiv.org/rss/cs.AI+cs.LG ✅
+
+# Media (implémenté)
+The Verge AI: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml ✅
+Ars Technica AI: https://arstechnica.com/ai/feed/ ✅
+
+# Community (implémenté)
+Reddit r/MachineLearning: https://www.reddit.com/r/MachineLearning/hot.json ✅
+Reddit r/LocalLLaMA: https://www.reddit.com/r/LocalLLaMA/hot.json ✅
+Hacker News: Algolia API avec points > 40 ✅
 ```
