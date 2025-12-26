@@ -247,10 +247,11 @@ claude-service ───► discord-bot:8000 ───► Discord API
 - [ ] Claude query intelligent
 - [ ] Réponse formatée
 
-### 7.3 Admin commands
-- [ ] /status - état des services
-- [ ] /stats - metrics (articles count, digests count)
-- [ ] /force-daily - trigger manuel
+### 7.3 Admin commands ✅
+- [x] /status - état des services (PostgreSQL, claude-service, bot)
+- [x] /stats - metrics (articles, categories, digests, last dates)
+- [x] Permission system: `@default_permissions(administrator=True)`
+- [ ] /force-daily - trigger manuel (futur)
 
 ### 7.4 Multi-channel
 - [ ] Config channels par mission
@@ -270,7 +271,7 @@ Phase 4.5 (Reliability)      ██████████  DONE (MCP logging, 
 Phase 5 (Weekly)             ██████████  DONE (endpoint + workflow + mission)
 Phase 6 (On-Demand)          ██████████  DONE (/weekly theme + dates)
 ─────────────────────────────────────────────── Feature Complete
-Phase 7 (Polish)             ██░░░░░░░░  IN PROGRESS (7.1 done)
+Phase 7 (Polish)             ████░░░░░░  IN PROGRESS (7.1, 7.3 done)
 ```
 
 ## MVP Fonctionnel
