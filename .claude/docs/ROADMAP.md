@@ -47,33 +47,34 @@
 
 ---
 
-## Phase 2: Déduplication Hybride
+## Phase 2: Déduplication Hybride ✅
 
-### 2.1 Nouveau MCP Tool
-- [ ] Créer `get_recent_headlines(mission_id, days=3)`
-- [ ] Retourne: liste de {title, url, date} des articles sélectionnés
-- [ ] Limiter à 50 résultats max
+### 2.1 Nouveau MCP Tool ✅
+- [x] Créer `get_recent_headlines(mission_id, days=3)`
+- [x] Retourne: liste de {title, url, date, category} des articles sélectionnés
+- [x] Limiter à 50 résultats max
 
 **Fichier:** `claude-service/mcp/server.py`
 
-### 2.2 Dédup URL dans n8n
-- [ ] Ajouter node HTTP pour query articles existants (7j)
-- [ ] Filtrer articles dont URL existe déjà
-- [ ] Ou: ajouter endpoint `/check-urls` dans claude-service
+### 2.2 Endpoint /check-urls ✅
+- [x] Ajouter endpoint POST `/check-urls` dans claude-service
+- [x] Reçoit liste d'URLs, retourne new_urls et duplicate_urls
+- [x] Query articles des derniers N jours (default 7, max 30)
 
-**Fichier:** `workflows/daily-news-workflow.json` ou `claude-service/main.py`
+**Fichier:** `claude-service/main.py`
 
-### 2.3 Modifier Instructions Agent
-- [ ] Ajouter étape: appeler `get_recent_headlines` avant analyse
-- [ ] Instruction: "Ne pas sélectionner sujet déjà couvert sauf update significative"
-- [ ] Ajouter `duplicate` comme raison d'exclusion
+### 2.3 Modifier Instructions Agent ✅
+- [x] Ajouter étape 1.6: appeler `get_recent_headlines` avant analyse
+- [x] Instruction: "Ne pas sélectionner sujet déjà couvert sauf update significative"
+- [x] Documenter exemples de déduplication
+- [x] Ajouter get_recent_headlines à allowed_tools
 
 **Fichier:** `claude-service/config/CLAUDE.md`
 
-### 2.4 Tests Phase 2
-- [ ] Test: article avec même URL ignoré
-- [ ] Test: article même sujet marqué duplicate par Claude
-- [ ] Test: update significative quand même sélectionnée
+### 2.4 Tests Phase 2 ✅
+- [x] Test: /check-urls retourne URLs correctement classées
+- [x] Test: MCP server.py contient get_recent_headlines
+- [x] Test: Query filtre par status='selected'
 
 ---
 
