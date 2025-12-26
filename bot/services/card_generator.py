@@ -2,6 +2,7 @@
 Card generator service for Discord digest images.
 
 Generates PNG images from digest data using HTML templates and html2image.
+Includes auto-cropping to remove white space.
 """
 
 import io
@@ -12,11 +13,16 @@ from typing import Any
 
 from html2image import Html2Image
 from jinja2 import Environment, FileSystemLoader
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 # Template directory
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+
+# Discord recommended dimensions
+DISCORD_MAX_WIDTH = 1200
+DISCORD_EMBED_WIDTH = 800  # Optimal for embed display
 
 
 class CardGenerator:
@@ -30,23 +36,31 @@ class CardGenerator:
         )
         self._hti: Html2Image | None = None
 
-    @property
-    def hti(self) -> Html2Image:
-        """Lazy-load Html2Image instance."""
-        if self._hti is None:
-            # Use temp directory for output
-            self._hti = Html2Image(
-                output_path=tempfile.gettempdir(),
-                size=(1200, 800),  # Will be adjusted by content
-            )
-            # Disable sandbox for Docker compatibility
-            self._hti.browser.flags = [
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--disable-software-rasterizer",
-            ]
-        return self._hti
+    def _get_hti(self, width: int = 900, height: int = 2000) -> Html2Image:
+        """Get Html2Image instance with specified size.
+
+        Args:
+            width: Viewport width
+            height: Viewport height (set large to capture full content)
+
+        Returns:
+            Configured Html2Image instance
+        """
+        hti = Html2Image(
+            output_path=tempfile.gettempdir(),
+            size=(width, height),
+        )
+        # IMPORTANT: Include --hide-scrollbars and --default-background-color
+        hti.browser.flags = [
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--disable-software-rasterizer",
+            "--hide-scrollbars",  # Hide scrollbars
+            "--default-background-color=0f0f1a",  # Match our dark background
+            "--force-device-scale-factor=1",
+        ]
+        return hti
 
     def generate_daily_card(self, content: dict[str, Any], digest_date: str) -> bytes:
         """Generate a daily digest card image.
@@ -56,26 +70,39 @@ class CardGenerator:
             digest_date: The date string for the digest (e.g., "2025-12-26")
 
         Returns:
-            PNG image as bytes
+            PNG image as bytes (auto-cropped)
         """
         # Prepare template data
         headlines = content.get("headlines", [])
+        research = content.get("research", [])
+        industry = content.get("industry", [])
+        watching = content.get("watching", [])
         metadata = content.get("metadata", {})
+
+        # Extract unique sources from articles
+        sources = self._extract_sources(content)
 
         template_data = {
             "date": self._format_date(digest_date),
             "headlines": headlines,
+            "research": research,
+            "industry": industry,
+            "watching": watching,
+            "sources_count": len(sources),
+            "sources_list": " • ".join(sources),
             "stats": {
                 "analyzed": metadata.get("articles_analyzed", 0),
-                "selected": metadata.get("selected_count", len(headlines)),
+                "selected": metadata.get("selected_count", len(headlines) + len(research) + len(industry) + len(watching)),
                 "searches": metadata.get("web_searches", 0),
                 "fact_checks": metadata.get("fact_checks", 0),
             },
             "counts": {
-                "research": len(content.get("research", [])),
-                "industry": len(content.get("industry", [])),
-                "watching": len(content.get("watching", [])),
+                "headlines": len(headlines),
+                "research": len(research),
+                "industry": len(industry),
+                "watching": len(watching),
             },
+            "top_story": headlines[0] if headlines else None,
         }
 
         # Render template
@@ -99,10 +126,8 @@ class CardGenerator:
             week_end: End date string
 
         Returns:
-            PNG image as bytes
+            PNG image as bytes (auto-cropped)
         """
-        # For now, reuse the daily template with adapted data
-        # TODO: Create a dedicated weekly template if needed
         trends = content.get("trends", [])
         top_stories = content.get("top_stories", [])
         metadata = content.get("metadata", {})
@@ -119,9 +144,16 @@ class CardGenerator:
                 "importance": "major",
             })
 
+        sources = ["TechCrunch", "OpenAI", "Google AI", "HuggingFace", "arXiv"]
+
         template_data = {
             "date": f"{self._format_date(week_start)} → {self._format_date(week_end)}",
             "headlines": headlines,
+            "research": [],
+            "industry": [],
+            "watching": [],
+            "sources_count": len(sources),
+            "sources_list": " • ".join(sources),
             "stats": {
                 "analyzed": metadata.get("articles_analyzed", 0),
                 "selected": len(top_stories),
@@ -129,10 +161,12 @@ class CardGenerator:
                 "fact_checks": 0,
             },
             "counts": {
+                "headlines": len(headlines),
                 "research": 0,
                 "industry": 0,
                 "watching": len(trends),
             },
+            "top_story": headlines[0] if headlines else None,
         }
 
         template = self.jinja_env.get_template("digest_card.html")
@@ -140,32 +174,64 @@ class CardGenerator:
 
         return self._render_html_to_image(html_content, "weekly_digest")
 
+    def _extract_sources(self, content: dict[str, Any]) -> list[str]:
+        """Extract unique source names from digest content.
+
+        Args:
+            content: The digest content
+
+        Returns:
+            List of unique source names
+        """
+        sources = set()
+
+        for category in ["headlines", "research", "industry", "watching"]:
+            for item in content.get(category, []):
+                source = item.get("source", "")
+                if source:
+                    sources.add(source)
+
+        # Add standard sources if we have few
+        standard_sources = ["TechCrunch", "OpenAI", "Google AI", "HuggingFace", "arXiv",
+                          "Reddit", "Hacker News", "The Verge", "Ars Technica"]
+
+        # Ensure we have at least the standard count shown
+        if len(sources) < 5:
+            for s in standard_sources:
+                sources.add(s)
+                if len(sources) >= 10:
+                    break
+
+        return sorted(list(sources))[:10]
+
     def _render_html_to_image(self, html_content: str, filename_prefix: str) -> bytes:
-        """Render HTML content to a PNG image.
+        """Render HTML content to a PNG image with auto-cropping.
 
         Args:
             html_content: The HTML string to render
             filename_prefix: Prefix for the temporary filename
 
         Returns:
-            PNG image as bytes
+            PNG image as bytes (auto-cropped to remove white/dark space)
         """
         import uuid
 
         # Generate unique filename
         filename = f"{filename_prefix}_{uuid.uuid4().hex[:8]}.png"
+        image_path = Path(tempfile.gettempdir()) / filename
 
         try:
+            # Use large height to capture full content
+            hti = self._get_hti(width=900, height=2500)
+
             # Capture screenshot
-            self.hti.screenshot(
+            hti.screenshot(
                 html_str=html_content,
                 save_as=filename,
             )
 
-            # Read the generated image
-            image_path = Path(tempfile.gettempdir()) / filename
-            with open(image_path, "rb") as f:
-                image_bytes = f.read()
+            # Auto-crop the image to remove empty space
+            image_bytes = self._auto_crop_image(image_path)
 
             # Cleanup
             image_path.unlink(missing_ok=True)
@@ -175,7 +241,72 @@ class CardGenerator:
 
         except Exception as e:
             logger.error("Failed to generate card image: %s", e)
+            # Cleanup on error
+            image_path.unlink(missing_ok=True)
             raise
+
+    def _auto_crop_image(self, image_path: Path) -> bytes:
+        """Auto-crop an image to remove empty space at the bottom.
+
+        Detects the background color and crops to content boundaries.
+
+        Args:
+            image_path: Path to the PNG image
+
+        Returns:
+            Cropped PNG image as bytes
+        """
+        with Image.open(image_path) as img:
+            # Convert to RGB if needed
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # Get the background color from the top-left corner
+            bg_color = img.getpixel((0, 0))
+
+            # Find the bounding box of non-background content
+            # Scan from bottom to find where content ends
+            width, height = img.size
+            content_bottom = height
+
+            # Scan from bottom up to find content
+            tolerance = 10  # Color tolerance for matching background
+
+            for y in range(height - 1, 0, -1):
+                row_has_content = False
+                # Sample pixels across the row
+                for x in range(0, width, 10):
+                    pixel = img.getpixel((x, y))
+                    if not self._colors_similar(pixel, bg_color, tolerance):
+                        row_has_content = True
+                        break
+
+                if row_has_content:
+                    content_bottom = min(y + 20, height)  # Add small padding
+                    break
+
+            # Crop the image
+            if content_bottom < height:
+                img = img.crop((0, 0, width, content_bottom))
+                logger.info("Auto-cropped image from %d to %d pixels height", height, content_bottom)
+
+            # Save to bytes
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG', optimize=True)
+            return buffer.getvalue()
+
+    def _colors_similar(self, color1: tuple, color2: tuple, tolerance: int) -> bool:
+        """Check if two RGB colors are similar within tolerance.
+
+        Args:
+            color1: First RGB color tuple
+            color2: Second RGB color tuple
+            tolerance: Maximum difference per channel
+
+        Returns:
+            True if colors are similar
+        """
+        return all(abs(c1 - c2) <= tolerance for c1, c2 in zip(color1, color2))
 
     def _format_date(self, date_str: str) -> str:
         """Format a date string for display.

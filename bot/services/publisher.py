@@ -73,89 +73,144 @@ def _format_news_item(item: dict[str, Any], show_summary: bool = True) -> str:
 
 
 def build_daily_embeds(content: dict[str, Any], digest_date: str) -> list[discord.Embed]:
-    """Build Discord embeds from daily digest content.
+    """Build detailed Discord embeds from daily digest content.
+
+    Creates separate embeds for each category with full article details.
 
     Args:
         content: The digest content (headlines, research, industry, watching, metadata)
         digest_date: The date string for the digest
 
     Returns:
-        List of Discord embeds
+        List of Discord embeds (one per category)
     """
     embeds = []
 
-    # Main embed
-    main_embed = discord.Embed(
-        title=f"📰 AI News Daily — {digest_date}",
-        color=discord.Color.blue(),
-        timestamp=datetime.utcnow(),
-    )
-
-    # Add headlines section
+    # Headlines embed
     headlines = content.get("headlines", [])
     if headlines:
-        headlines_text = ""
-        for item in headlines[:5]:
-            headlines_text += _format_news_item(item, show_summary=True)
-
-        section_emoji = SECTION_EMOJIS.get("headlines", "📰")
-        main_embed.add_field(
-            name=f"{section_emoji} Headlines",
-            value=headlines_text[:1024] or "No headlines",
-            inline=False,
+        headlines_embed = discord.Embed(
+            title="📰 Headlines",
+            description="Top AI/ML news stories of the day",
+            color=discord.Color.from_rgb(239, 68, 68),  # Red
         )
 
-    # Add research section
+        for item in headlines:
+            emoji = item.get("emoji", DEFAULT_ITEM_EMOJI)
+            confidence = item.get("confidence", "medium")
+            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
+
+            field_name = f"{emoji} {item.get('title', '')[:80]}"
+
+            summary = item.get("summary", "")[:200]
+            if len(item.get("summary", "")) > 200:
+                summary += "..."
+
+            url = item.get("url", "")
+            source = item.get("source", "")
+
+            field_value = f"{summary}\n\n"
+            if url:
+                field_value += f"📎 **[Read article]({url})**\n"
+            field_value += f"└ `{source}` {conf_indicator} {confidence}"
+
+            headlines_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
+
+        embeds.append(headlines_embed)
+
+    # Research embed
     research = content.get("research", [])
     if research:
-        research_text = ""
-        for item in research[:3]:
-            research_text += _format_news_item(item, show_summary=False)
-
-        section_emoji = SECTION_EMOJIS.get("research", "🔬")
-        main_embed.add_field(
-            name=f"{section_emoji} Research",
-            value=research_text[:1024] or "No research items",
-            inline=False,
+        research_embed = discord.Embed(
+            title="🔬 Research & Development",
+            description="Latest papers and technical announcements",
+            color=discord.Color.from_rgb(34, 197, 94),  # Green
         )
 
-    # Add industry section
+        for item in research:
+            confidence = item.get("confidence", "medium")
+            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
+
+            field_name = f"📄 {item.get('title', '')[:80]}"
+
+            summary = item.get("summary", "")[:200]
+            if len(item.get("summary", "")) > 200:
+                summary += "..."
+
+            url = item.get("url", "")
+            source = item.get("source", "")
+
+            field_value = f"{summary}\n\n"
+            if url:
+                field_value += f"📎 **[Read more]({url})**\n"
+            field_value += f"└ `{source}` {conf_indicator} {confidence}"
+
+            research_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
+
+        embeds.append(research_embed)
+
+    # Industry embed
     industry = content.get("industry", [])
     if industry:
-        industry_text = ""
-        for item in industry[:3]:
-            industry_text += _format_news_item(item, show_summary=False)
-
-        section_emoji = SECTION_EMOJIS.get("industry", "🏢")
-        main_embed.add_field(
-            name=f"{section_emoji} Industry",
-            value=industry_text[:1024] or "No industry items",
-            inline=False,
+        industry_embed = discord.Embed(
+            title="🏢 Industry News",
+            description="Business moves, acquisitions, and market updates",
+            color=discord.Color.from_rgb(99, 102, 241),  # Indigo
         )
 
-    # Add watching section
+        for item in industry:
+            confidence = item.get("confidence", "medium")
+            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
+
+            field_name = f"💼 {item.get('title', '')[:80]}"
+
+            summary = item.get("summary", "")[:200]
+            if len(item.get("summary", "")) > 200:
+                summary += "..."
+
+            url = item.get("url", "")
+            source = item.get("source", "")
+
+            field_value = f"{summary}\n\n"
+            if url:
+                field_value += f"📎 **[Read more]({url})**\n"
+            field_value += f"└ `{source}` {conf_indicator} {confidence}"
+
+            industry_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
+
+        embeds.append(industry_embed)
+
+    # Watching embed
     watching = content.get("watching", [])
     if watching:
-        watching_text = ""
-        for item in watching[:3]:
-            watching_text += _format_news_item(item, show_summary=False)
-
-        section_emoji = SECTION_EMOJIS.get("watching", "👀")
-        main_embed.add_field(
-            name=f"{section_emoji} Watching",
-            value=watching_text[:1024] or "No items to watch",
-            inline=False,
+        watching_embed = discord.Embed(
+            title="👀 Worth Watching",
+            description="Emerging trends and stories to follow",
+            color=discord.Color.from_rgb(234, 179, 8),  # Yellow
         )
 
-    # Footer with metadata
-    metadata = content.get("metadata", {})
-    articles_analyzed = metadata.get("articles_analyzed", 0)
-    web_searches = metadata.get("web_searches", 0)
-    main_embed.set_footer(
-        text=f"🤖 Analyzed {articles_analyzed} articles | {web_searches} web searches"
-    )
+        for item in watching:
+            confidence = item.get("confidence", "medium")
+            conf_indicator = CONFIDENCE_BADGES.get(confidence, "🟡")
 
-    embeds.append(main_embed)
+            field_name = f"🔍 {item.get('title', '')[:80]}"
+
+            summary = item.get("summary", "")[:200]
+            if len(item.get("summary", "")) > 200:
+                summary += "..."
+
+            url = item.get("url", "")
+            source = item.get("source", "")
+
+            field_value = f"{summary}\n\n"
+            if url:
+                field_value += f"📎 **[Read more]({url})**\n"
+            field_value += f"└ `{source}` {conf_indicator} {confidence}"
+
+            watching_embed.add_field(name=field_name, value=field_value[:1024], inline=False)
+
+        embeds.append(watching_embed)
+
     return embeds
 
 
@@ -289,18 +344,19 @@ async def publish_daily_digest(
     card_file = None
     try:
         card_bytes = await generate_daily_card_async(content, digest_date)
-        card_file = discord.File(io.BytesIO(card_bytes), filename="daily-digest.png")
+        card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-daily.png")
         logger.info("Generated daily card image: %d bytes", len(card_bytes))
     except Exception as e:
         logger.warning("Failed to generate card image, continuing without: %s", e)
 
     embeds = build_daily_embeds(content, digest_date)
 
-    # Send with card image if available
+    # Send card image first (if available), then embeds separately
     if card_file:
-        message = await channel.send(file=card_file, embeds=embeds)
-    else:
-        message = await channel.send(embeds=embeds)
+        await channel.send(file=card_file)
+
+    # Send detailed embeds (Discord allows max 10 embeds per message)
+    message = await channel.send(embeds=embeds[:10])
 
     # Update database
     try:
