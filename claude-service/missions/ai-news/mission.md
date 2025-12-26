@@ -26,10 +26,22 @@ Ces sources sont considérées comme primaires et fiables :
 | ai.google, blog.google, deepmind.google | Google AI officiel |
 | ai.meta.com | Meta AI officiel |
 | huggingface.co | HuggingFace officiel |
-| arxiv.org | Papers académiques |
+| arxiv.org | Papers académiques (cs.AI, cs.LG) |
 | mit.edu | MIT recherche |
 | stanford.edu | Stanford recherche |
 | bair.berkeley.edu | Berkeley AI Research |
+| theverge.com/ai-artificial-intelligence | The Verge AI section |
+| arstechnica.com/ai | Ars Technica AI section |
+
+## Sources communautaires (fact-check recommandé)
+
+Ces sources fournissent des informations utiles mais nécessitent validation :
+
+| Source | Domaine | Notes |
+|--------|---------|-------|
+| reddit.com/r/MachineLearning | Communauté ML | Filtré score > 100 |
+| reddit.com/r/LocalLLaMA | LLMs locaux/open source | Filtré score > 100 |
+| news.ycombinator.com | Hacker News | Filtré points > 40 |
 
 ## Workflow spécifique
 
