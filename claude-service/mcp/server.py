@@ -425,6 +425,45 @@ def _validate_news_items(items: list[dict], section_name: str) -> list[str]:
     return errors
 
 
+def _validate_excluded_items(items: list[dict]) -> list[str]:
+    """Validate excluded items have required fields."""
+    errors = []
+    required_fields = ["url", "title", "category", "reason", "score"]
+    valid_reasons = ["off_topic", "duplicate", "low_priority", "outdated"]
+
+    for i, item in enumerate(items or []):
+        for field in required_fields:
+            if field not in item:
+                errors.append(f"excluded[{i}]: missing '{field}'")
+
+        # Validate reason value
+        if "reason" in item and item["reason"] not in valid_reasons:
+            errors.append(f"excluded[{i}]: invalid reason '{item['reason']}', must be one of {valid_reasons}")
+
+        # Validate score range
+        if "score" in item:
+            score = item["score"]
+            if not isinstance(score, (int, float)) or score < 1 or score > 10:
+                errors.append(f"excluded[{i}]: score must be between 1 and 10")
+
+    return errors
+
+
+def _compute_exclusion_breakdown(excluded: list[dict]) -> dict[str, int]:
+    """Compute breakdown of exclusion reasons."""
+    breakdown = {
+        "off_topic": 0,
+        "duplicate": 0,
+        "low_priority": 0,
+        "outdated": 0,
+    }
+    for item in excluded or []:
+        reason = item.get("reason")
+        if reason in breakdown:
+            breakdown[reason] += 1
+    return breakdown
+
+
 @mcp.tool()
 def submit_digest(
     execution_id: str,
@@ -432,13 +471,15 @@ def submit_digest(
     research: list[dict],
     industry: list[dict],
     watching: list[dict],
+    excluded: list[dict],
     metadata: dict,
 ) -> dict:
     """
     Submit the final AI news digest for publication to Discord.
 
     Call this tool ONCE at the end of your analysis with the complete digest.
-    The digest will be validated, saved to file, and optionally stored in DB.
+    The digest will be validated, saved to file, and stored in DB.
+    Both selected AND excluded articles are archived for complete data retention.
 
     Args:
         execution_id: The execution ID provided in the prompt parameters
@@ -446,6 +487,13 @@ def submit_digest(
         research: List of research/paper items (can be empty)
         industry: List of industry/business items (can be empty)
         watching: List of trends to watch (can be empty)
+        excluded: List of excluded articles with minimal info:
+            - url: str (article URL)
+            - title: str (article title)
+            - category: str (assigned category)
+            - reason: str (off_topic|duplicate|low_priority|outdated)
+            - score: int (relevance score 1-10)
+            - source: str (optional, article source)
         metadata: Execution metadata with fields:
             - mission_id: str (e.g., "ai-news")
             - articles_analyzed: int
@@ -453,8 +501,6 @@ def submit_digest(
             - fact_checks: int
             - deep_dives: int
             - research_doc: str (path to research document)
-            - total_news_included: int
-            - total_news_excluded: int
 
     Returns:
         Dict with status, file path, and validation results
@@ -470,6 +516,9 @@ def submit_digest(
     errors.extend(_validate_news_items(research, "research"))
     errors.extend(_validate_news_items(industry, "industry"))
     errors.extend(_validate_news_items(watching, "watching"))
+
+    # Validate excluded items
+    errors.extend(_validate_excluded_items(excluded))
 
     # Validate metadata
     required_meta = ["articles_analyzed", "web_searches", "research_doc"]
@@ -487,6 +536,11 @@ def submit_digest(
     mission_id = metadata.get("mission_id", "ai-news")
     today = date.today()
 
+    # Compute stats
+    selected_count = len(headlines) + len(research or []) + len(industry or []) + len(watching or [])
+    excluded_count = len(excluded or [])
+    exclusion_breakdown = _compute_exclusion_breakdown(excluded)
+
     # Build the digest structure (digest_id added after DB save)
     digest = {
         "digest": {
@@ -498,6 +552,7 @@ def submit_digest(
         "research": research or [],
         "industry": industry or [],
         "watching": watching or [],
+        "excluded": excluded or [],
         "metadata": {
             "execution_id": execution_id,
             "mission_id": mission_id,
@@ -506,13 +561,14 @@ def submit_digest(
             "fact_checks": metadata.get("fact_checks", 0),
             "deep_dives": metadata.get("deep_dives", 0),
             "research_doc": metadata.get("research_doc", ""),
-            "total_news_included": metadata.get("total_news_included", 0),
-            "total_news_excluded": metadata.get("total_news_excluded", 0),
+            "selected_count": selected_count,
+            "excluded_count": excluded_count,
+            "exclusion_breakdown": exclusion_breakdown,
         },
         "submitted_at": datetime.now().isoformat(),
     }
 
-    total_items = len(headlines) + len(research or []) + len(industry or []) + len(watching or [])
+    total_items = selected_count
 
     # Save to database if available
     logger.info(f"submit_digest called", execution_id=execution_id, items=total_items)
@@ -545,23 +601,25 @@ def submit_digest(
                 digest_id = cur.fetchone()["id"]
                 logger.operation("insert_digest", "success", f"digest_id={digest_id}")
 
-                # Create categories and store articles
-                all_items = [
+                # Create categories and store SELECTED articles
+                all_selected = [
                     *[(item, "headlines") for item in headlines],
                     *[(item, "research") for item in (research or [])],
                     *[(item, "industry") for item in (industry or [])],
                     *[(item, "watching") for item in (watching or [])],
                 ]
 
-                for item, section in all_items:
+                selected_saved = 0
+                for item, section in all_selected:
                     category_id = _get_or_create_category(cur, mission_id, item["category"])
 
-                    # Insert article (ignore duplicates by URL)
+                    # Insert selected article with status='selected'
                     cur.execute(
                         """
                         INSERT INTO articles (mission_id, category_id, daily_digest_id,
-                                             title, url, source, description, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                             title, url, source, description, created_at,
+                                             status, relevance_score)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (url) DO NOTHING
                         """,
                         (
@@ -573,9 +631,45 @@ def submit_digest(
                             item["source"],
                             item.get("summary", ""),
                             datetime.now(),
+                            "selected",
+                            item.get("relevance_score"),
                         ),
                     )
-                    articles_saved += 1
+                    selected_saved += 1
+
+                logger.operation("insert_selected", "success", f"{selected_saved} selected articles")
+
+                # Store EXCLUDED articles (no daily_digest_id, with exclusion_reason)
+                excluded_saved = 0
+                for item in (excluded or []):
+                    category_id = _get_or_create_category(cur, mission_id, item["category"])
+
+                    cur.execute(
+                        """
+                        INSERT INTO articles (mission_id, category_id, daily_digest_id,
+                                             title, url, source, description, created_at,
+                                             status, exclusion_reason, relevance_score)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (url) DO NOTHING
+                        """,
+                        (
+                            mission_id,
+                            category_id,
+                            None,  # No digest association for excluded
+                            item["title"],
+                            item["url"],
+                            item.get("source", "unknown"),
+                            None,  # No summary for excluded
+                            datetime.now(),
+                            "excluded",
+                            item["reason"],
+                            item["score"],
+                        ),
+                    )
+                    excluded_saved += 1
+
+                articles_saved = selected_saved + excluded_saved
+                logger.operation("insert_excluded", "success", f"{excluded_saved} excluded articles")
 
                 conn.commit()
                 db_saved = True
@@ -614,16 +708,18 @@ def submit_digest(
         "execution_id": execution_id,
         "digest_id": digest_id,
         "output_path": str(output_file),
-        "total_items": total_items,
+        "selected_count": selected_count,
+        "excluded_count": excluded_count,
+        "total_archived": articles_saved,
         "db_saved": db_saved,
-        "articles_saved": articles_saved,
-        "db_error": db_error,  # Include error details for debugging
-        "operations": logger.get_operations_summary(),  # Include operation log
-        "message": f"Digest saved successfully with {total_items} news items.",
+        "db_error": db_error,
+        "exclusion_breakdown": exclusion_breakdown,
+        "operations": logger.get_operations_summary(),
+        "message": f"Digest saved: {selected_count} selected, {excluded_count} excluded, {articles_saved} archived to DB.",
     }
 
     if db_saved:
-        logger.success(f"submit_digest completed", digest_id=digest_id, articles=articles_saved)
+        logger.success(f"submit_digest completed", digest_id=digest_id, selected=selected_count, excluded=excluded_count)
     else:
         logger.warn(f"submit_digest completed without DB save", error=db_error)
 
