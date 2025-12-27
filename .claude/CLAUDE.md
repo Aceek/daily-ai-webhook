@@ -16,32 +16,70 @@ Système automatisé de veille AI/ML : n8n collecte → Claude analyse → Postg
 
 ```
 daily-ai-webhook/
-├── docker-compose.yml        # postgres + n8n + claude-service + discord-bot
+├── docker-compose.yml           # postgres + n8n + claude-service + discord-bot
 ├── claude-service/
-│   ├── main.py               # FastAPI /summarize, /log-workflow
-│   ├── models.py             # SQLModel: Mission, Category, Article, Digest
-│   ├── database.py           # Async engine, session factory
-│   ├── execution_logger.py   # Logs folder-per-execution
-│   ├── Dockerfile
-│   ├── entrypoint.sh
+│   ├── main.py                  # FastAPI app init
+│   ├── config.py                # Settings, VALID_MISSIONS
+│   ├── models.py                # SQLModel: Mission, Category, Article, Digest
+│   ├── database.py              # Async engine, session factory
+│   ├── api/
+│   │   ├── routes.py            # Route definitions
+│   │   ├── handlers.py          # /summarize, /log-workflow, /check-urls
+│   │   ├── models.py            # Pydantic request/response models
+│   │   └── converters.py        # Data converters
+│   ├── services/
+│   │   ├── claude_service.py    # Claude CLI orchestration
+│   │   ├── digest_service.py    # Digest file operations
+│   │   └── prompt_builder.py    # Prompt construction
+│   ├── repositories/
+│   │   └── article_repository.py # URL deduplication queries
+│   ├── loggers/
+│   │   ├── execution_logger.py  # Per-execution logging
+│   │   ├── workflow_logger.py   # n8n workflow logging
+│   │   └── models.py            # Log data models
+│   ├── formatters/
+│   │   └── markdown_formatter.py # Summary/workflow MD generation
+│   ├── utils/
+│   │   └── execution_dir.py     # Execution directory management
+│   ├── mcp/
+│   │   ├── server.py            # MCP tools entry point
+│   │   ├── models.py            # Pydantic models
+│   │   ├── validators.py        # Input validation
+│   │   ├── utils.py             # Helper functions
+│   │   ├── logger.py            # MCPLogger
+│   │   ├── repositories/        # DB queries (base, article, category, digest, stats)
+│   │   └── services/            # Business logic (article_query, digest_submitter, weekly_digest)
 │   ├── config/
-│   │   ├── CLAUDE.md         # Instructions agent (production)
-│   │   ├── .mcp.json         # Config MCP tools
-│   │   └── agents/           # Sub-agents fact-checker, topic-diver
-│   ├── mcp/server.py         # MCP tools (DB query + submit)
+│   │   ├── CLAUDE.md            # Instructions agent (production)
+│   │   ├── .mcp.json            # Config MCP tools
+│   │   └── agents/              # Sub-agents fact-checker, topic-diver
 │   └── missions/
-│       ├── _common/          # quality-rules, mcp-usage, research-template
-│       └── ai-news/          # mission, selection, editorial, output-schema
+│       ├── _common/             # quality-rules, mcp-usage, research-template
+│       └── ai-news/             # mission, selection, editorial, output-schema
 ├── bot/
-│   ├── main.py               # Discord bot + FastAPI entry point
-│   ├── api.py                # HTTP API endpoints (/publish, /health)
-│   ├── cogs/daily.py         # /daily command
-│   ├── cogs/weekly.py        # /weekly command
-│   ├── services/database.py  # DB queries (asyncpg)
-│   ├── services/publisher.py # Digest publication logic
+│   ├── main.py                  # Discord bot + FastAPI entry point
+│   ├── api.py                   # HTTP API endpoints (/publish, /health)
+│   ├── config.py                # Bot configuration
+│   ├── cogs/
+│   │   ├── daily.py             # /daily command
+│   │   ├── weekly.py            # /weekly command
+│   │   └── admin.py             # /status, /stats commands
+│   ├── services/
+│   │   ├── models.py            # PublishRequest, DigestResult
+│   │   ├── database.py          # Connection pool
+│   │   ├── publisher.py         # Unified digest publication
+│   │   ├── embed_builder.py     # Discord embed construction
+│   │   ├── card_generator.py    # Image card generation
+│   │   ├── image_renderer.py    # HTML to image rendering
+│   │   ├── health_checker.py    # Health check utilities
+│   │   ├── claude_client.py     # Claude API client
+│   │   ├── command_logger.py    # Command logging
+│   │   ├── formatters/          # Item formatting (item_formatter.py)
+│   │   ├── repositories/        # DB queries (digest_repository.py)
+│   │   └── utils/               # Helpers (date_utils.py)
 │   └── Dockerfile
-├── data/                     # articles.json (runtime)
-└── logs/                     # Exécutions (gitignored)
+├── data/                        # articles.json (runtime)
+└── logs/                        # Exécutions (gitignored)
 ```
 
 **Contextes:** `.claude/` = dev local | `claude-service/` = production container
@@ -73,6 +111,7 @@ discord-bot: /daily, /weekly → query PostgreSQL → embeds
 | `get_categories` | Liste catégories existantes |
 | `get_articles` | Query articles avec filtres |
 | `get_article_stats` | Stats par période |
+| `get_recent_headlines` | Titres récents (dédup) |
 | `submit_digest` | Sauvegarde daily + articles en DB |
 | `submit_weekly_digest` | Sauvegarde weekly en DB |
 
@@ -121,8 +160,16 @@ logs/
 | `/weekly` | Dernier weekly digest (cached) |
 | `/weekly theme:openai` | Génère analyse thématique on-demand |
 | `/weekly week_start:2024-12-16 week_end:2024-12-22` | Analyse période custom |
+| `/status` | État des services (DB, Claude) |
+| `/stats` | Statistiques articles/digests |
 
 ## Standards
+
+**Architecture:**
+- Layered: api/ → services/ → repositories/
+- Fichiers < 300 lignes, fonctions < 30 lignes
+- SoC: models/, services/, repositories/, utils/ séparés
+- DRY: pas de code dupliqué
 
 **Code:** Type hints, docstrings, logging structuré (pas print), async pour I/O
 **Bash:** `set -euo pipefail`, variables quotées
@@ -135,5 +182,5 @@ Ne jamais commit: `.env`, `*.credentials.json`, `n8n-data/`, `logs/`
 
 ## Documentation
 
-- `.claude/docs/VISION.md` - Architecture cible
-- `.claude/docs/ROADMAP.md` - Plan d'implémentation et état actuel
+- `.claude/missions/refactoring/roadmap.md` - Historique refactoring
+- `.claude/missions/refactoring/VERIFICATION.md` - Rapport conformité
