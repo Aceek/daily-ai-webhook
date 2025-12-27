@@ -1,40 +1,78 @@
-# daily-ai-webhook
+# AI News Bot
 
-Automated daily AI/ML news digest delivered to Discord via n8n and Claude Code.
+Automated AI/ML news digest: n8n collects → Claude analyzes → PostgreSQL stores → Discord publishes.
 
-## Overview
+## Stack
 
-This project automatically:
-1. Collects AI/ML news from RSS feeds, Reddit, and Hacker News
-2. Analyzes and filters content using Claude Code
-3. Generates a curated daily summary
-4. Posts to Discord
+| Component | Tech | Role |
+|-----------|------|------|
+| Database | PostgreSQL 16 | Articles, digests, categories |
+| Orchestration | n8n | Cron, RSS feeds, workflow |
+| Intelligence | Claude Service (FastAPI) | Claude CLI wrapper, MCP tools |
+| Bot | discord.py + FastAPI | Discord commands + HTTP API |
 
 ## Quick Start
 
 ```bash
-# Clone the repo
-git clone git@github.com:Aceek/daily-ai-webhook.git
-cd daily-ai-webhook
-
-# Copy environment file
 cp .env.example .env
-
-# Start n8n
+# Edit .env with your credentials
 docker-compose up -d
-
-# Access n8n at http://localhost:5678
 ```
 
-## Documentation
+Access n8n at `http://localhost:5678`
 
-See [docs/VISION.md](docs/VISION.md) for the complete project vision and architecture.
+## Architecture
 
-## Stack
+```
+├── claude-service/          # FastAPI + Claude CLI
+│   ├── api/                 # Routes, handlers, models
+│   ├── services/            # Business logic
+│   ├── repositories/        # Database queries
+│   ├── mcp/                 # MCP tools (DB access for Claude)
+│   └── loggers/             # Execution logging
+├── bot/                     # Discord bot
+│   ├── cogs/                # Commands (/daily, /weekly, /status)
+│   └── services/            # Publisher, embeds, cards
+└── docker-compose.yml
+```
 
-- **n8n** - Workflow orchestration
-- **Claude Code** - AI-powered content analysis and summarization
-- **Discord Webhook** - Message delivery
+## Flow
+
+```
+n8n (cron) → RSS feeds → POST /summarize
+    ↓
+claude-service → Claude CLI (agentic) → MCP submit_digest
+    ↓
+PostgreSQL ← articles + digest saved
+    ↓
+n8n → POST /publish → Discord bot → Discord channel
+```
+
+## Discord Commands
+
+| Command | Description |
+|---------|-------------|
+| `/daily` | Latest daily digest |
+| `/daily date:2024-12-20` | Specific date |
+| `/weekly` | Weekly analysis |
+| `/status` | Service health |
+
+## Environment Variables
+
+```bash
+# Database
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_DB=
+
+# Discord
+DISCORD_TOKEN=
+DISCORD_GUILD_ID=      # Optional
+
+# n8n
+N8N_USER=
+N8N_PASSWORD=
+```
 
 ## License
 
