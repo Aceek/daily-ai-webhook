@@ -67,8 +67,8 @@ services:
       - claude-runtime:/root/.claude
       # Config files (copied to /root/.claude by entrypoint)
       - ./claude-service/config:/app/config:ro
-      # MCP server code
-      - ./claude-service/mcp:/app/mcp:ro
+      # MCP server code (named mcp_tools to avoid conflict with mcp package)
+      - ./claude-service/mcp_tools:/app/mcp_tools:ro
       # Missions configuration
       - ./claude-service/missions:/app/missions:ro
       # Data interchange (articles.json)
