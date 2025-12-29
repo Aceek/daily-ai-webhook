@@ -12,5 +12,5 @@ export PYTHONPATH="${PYTHONPATH:-/app}"
 # Ensure we're in the right directory
 cd /app
 
-# Run the MCP server
-exec python /app/mcp/server.py
+# Run the MCP server as a module (required for relative imports)
+exec python -m mcp_tools.server
