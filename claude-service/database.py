@@ -2,23 +2,28 @@
 Database connection and session management.
 
 Provides async database engine and session factory for SQLModel.
+Also provides sync session support for MCP subprocess operations.
 """
 
 import logging
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from contextlib import asynccontextmanager, contextmanager
+from typing import AsyncGenerator, Generator
 
+from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlmodel import SQLModel
 
 from models import Article, Category, DailyDigest, Mission, WeeklyDigest  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-# Global engine instance (initialized on startup)
+# Global engine instances (initialized on startup)
 _engine = None
 _async_session_factory = None
+_sync_engine = None
+_sync_session_factory = None
 
 
 async def init_db(database_url: str) -> None:
@@ -27,10 +32,11 @@ async def init_db(database_url: str) -> None:
     Args:
         database_url: PostgreSQL connection string (asyncpg format).
     """
-    global _engine, _async_session_factory
+    global _engine, _async_session_factory, _sync_engine, _sync_session_factory
 
     logger.info("Initializing database connection")
 
+    # Async engine (for main API operations)
     _engine = create_async_engine(
         database_url,
         echo=False,
@@ -45,22 +51,44 @@ async def init_db(database_url: str) -> None:
         expire_on_commit=False,
     )
 
+    # Sync engine (for MCP subprocess operations)
+    sync_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    _sync_engine = create_engine(
+        sync_url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+    )
+
+    _sync_session_factory = sessionmaker(
+        bind=_sync_engine,
+        class_=Session,
+        expire_on_commit=False,
+    )
+
     # Create tables if they don't exist
     async with _engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
-    logger.info("Database initialized successfully")
+    logger.info("Database initialized successfully (async + sync engines)")
 
 
 async def close_db() -> None:
-    """Close database connection."""
-    global _engine, _async_session_factory
+    """Close database connections (async and sync)."""
+    global _engine, _async_session_factory, _sync_engine, _sync_session_factory
 
     if _engine:
-        logger.info("Closing database connection")
+        logger.info("Closing async database connection")
         await _engine.dispose()
         _engine = None
         _async_session_factory = None
+
+    if _sync_engine:
+        logger.info("Closing sync database connection")
+        _sync_engine.dispose()
+        _sync_engine = None
+        _sync_session_factory = None
 
 
 @asynccontextmanager
@@ -80,9 +108,41 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except SQLAlchemyError:
             await session.rollback()
             raise
+        except Exception as e:
+            await session.rollback()
+            logger.error("Unexpected error in database session: %s", e)
+            raise
+
+
+@contextmanager
+def get_sync_session() -> Generator[Session, None, None]:
+    """Get a sync database session (for MCP subprocess operations).
+
+    Yields:
+        Session for synchronous database operations.
+
+    Raises:
+        RuntimeError: If database is not initialized.
+    """
+    if _sync_session_factory is None:
+        raise RuntimeError("Database not initialized. Call init_db() first.")
+
+    session = _sync_session_factory()
+    try:
+        yield session
+        session.commit()
+    except SQLAlchemyError:
+        session.rollback()
+        raise
+    except Exception as e:
+        session.rollback()
+        logger.error("Unexpected error in sync database session: %s", e)
+        raise
+    finally:
+        session.close()
 
 
 def get_engine():
