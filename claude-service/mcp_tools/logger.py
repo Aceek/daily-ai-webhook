@@ -1,65 +1,40 @@
 """Structured logger for MCP operations.
 
-Writes to execution directory for debugging and stderr for real-time monitoring.
+Compatibility wrapper for UnifiedLogger with MCP-specific interface.
 """
 
 import os
-import sys
-from datetime import datetime
-from pathlib import Path
 from typing import Any
+
+from loggers import get_logger
 
 
 class MCPLogger:
-    """Structured logger for MCP operations.
+    """MCP-specific logger interface wrapping UnifiedLogger.
 
-    Writes to mcp.log in the execution directory for persistent debugging.
-    Also outputs to stderr for real-time monitoring.
+    Provides backward-compatible API for MCP tools.
     """
 
     def __init__(self) -> None:
         """Initialize the logger."""
-        self.exec_dir = os.getenv("EXECUTION_DIR")
-        self.log_file = Path(self.exec_dir) / "mcp.log" if self.exec_dir else None
-        self.operations: list[dict[str, Any]] = []
+        # Get execution directory from environment
+        exec_dir = os.getenv("EXECUTION_DIR")
 
-    def _timestamp(self) -> str:
-        """Get current timestamp string.
+        # Get the unified logger instance
+        self._unified = get_logger()
 
-        Returns:
-            Formatted timestamp.
-        """
-        return datetime.now().strftime("%H:%M:%S.%f")[:-3]
-
-    def _write(
-        self,
-        level: str,
-        message: str,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        """Write log entry to file and stderr.
-
-        Args:
-            level: Log level (INFO, OK, ERROR, WARN, OP).
-            message: Log message.
-            details: Optional key-value details.
-        """
-        timestamp = self._timestamp()
-        log_line = f"[{timestamp}] [{level}] {message}"
-
-        # Always write to stderr (may be captured by parent)
-        print(f"[MCP] {log_line}", file=sys.stderr, flush=True)
-
-        # Write to file if execution directory is set
-        if self.log_file:
-            try:
-                with open(self.log_file, "a") as f:
-                    f.write(f"{log_line}\n")
-                    if details:
-                        for key, value in details.items():
-                            f.write(f"         {key}: {value}\n")
-            except Exception:
-                pass  # Don't fail on logging errors
+        # Setup execution directory if provided
+        if exec_dir:
+            # Extract execution_id from EXECUTION_DIR path
+            # Format: /app/logs/YYYY-MM-DD/HHMMSS_executionid
+            import re
+            match = re.search(r'/(\d{6})_([^/]+)$', exec_dir)
+            if match:
+                execution_id = match.group(2)
+                # Note: UnifiedLogger will handle the directory setup
+                # We just need to ensure the log file is set
+                from pathlib import Path
+                self._unified._log_file = Path(exec_dir) / "mcp.log"
 
     def info(self, message: str, **details: Any) -> None:
         """Log info message.
@@ -68,7 +43,7 @@ class MCPLogger:
             message: Log message.
             **details: Key-value details to log.
         """
-        self._write("INFO", message, details if details else None)
+        self._unified.mcp_info(message, **details)
 
     def success(self, message: str, **details: Any) -> None:
         """Log success message.
@@ -77,7 +52,7 @@ class MCPLogger:
             message: Log message.
             **details: Key-value details to log.
         """
-        self._write("OK", message, details if details else None)
+        self._unified.mcp_success(message, **details)
 
     def error(self, message: str, **details: Any) -> None:
         """Log error message.
@@ -86,7 +61,7 @@ class MCPLogger:
             message: Log message.
             **details: Key-value details to log.
         """
-        self._write("ERROR", message, details if details else None)
+        self._unified.mcp_error(message, **details)
 
     def warn(self, message: str, **details: Any) -> None:
         """Log warning message.
@@ -95,7 +70,7 @@ class MCPLogger:
             message: Log message.
             **details: Key-value details to log.
         """
-        self._write("WARN", message, details if details else None)
+        self._unified.mcp_warn(message, **details)
 
     def operation(self, name: str, status: str, details: str = "") -> None:
         """Record an operation for the summary.
@@ -105,18 +80,7 @@ class MCPLogger:
             status: Operation status (success, error, or other).
             details: Additional details.
         """
-        self.operations.append({
-            "timestamp": self._timestamp(),
-            "name": name,
-            "status": status,
-            "details": details,
-        })
-        symbol = "+" if status == "success" else "x" if status == "error" else "o"
-        self._write(
-            "OP",
-            f"{symbol} {name}",
-            {"details": details} if details else None,
-        )
+        self._unified.log_mcp_operation(name, status, details)
 
     def get_operations_summary(self) -> list[dict[str, Any]]:
         """Get list of operations for inclusion in response.
@@ -124,11 +88,11 @@ class MCPLogger:
         Returns:
             Copy of operations list.
         """
-        return self.operations.copy()
+        return self._unified.get_mcp_operations_summary()
 
     def clear_operations(self) -> None:
         """Clear the operations list."""
-        self.operations.clear()
+        self._unified.clear_mcp_operations()
 
 
 # Global logger instance

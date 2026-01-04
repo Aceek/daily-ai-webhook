@@ -9,36 +9,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class NewsItem(BaseModel):
-    """A news item for digest publication."""
-
-    title: str = Field(..., description="Article title")
-    summary: str = Field(..., description="Brief summary")
-    url: str = Field(..., description="Article URL")
-    source: str = Field(..., description="Source name")
-    category: str = Field(..., description="Assigned category")
-    confidence: float = Field(..., ge=0, le=1, description="Confidence score 0-1")
-    relevance_score: int | None = Field(None, ge=1, le=10, description="Relevance 1-10")
-
-
-class ExcludedItem(BaseModel):
-    """An excluded article for archival."""
-
-    url: str = Field(..., description="Article URL")
-    title: str = Field(..., description="Article title")
-    category: str = Field(..., description="Assigned category")
-    reason: str = Field(
-        ...,
-        description="Exclusion reason: off_topic|duplicate|low_priority|outdated"
-    )
-    score: int = Field(..., ge=1, le=10, description="Relevance score 1-10")
-    source: str | None = Field(None, description="Source name")
-
 
 class DigestMetadata(BaseModel):
     """Metadata for digest submission."""
 
-    mission_id: str = Field(default="ai-news", description="Mission identifier")
     articles_analyzed: int = Field(..., ge=0, description="Number of articles analyzed")
     web_searches: int = Field(default=0, ge=0, description="Number of web searches")
     fact_checks: int = Field(default=0, ge=0, description="Number of fact checks")

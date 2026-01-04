@@ -12,7 +12,6 @@ from ..repositories.digest import DigestRepository
 from ..utils import (
     build_daily_digest_structure,
     collect_selected_items,
-    compute_exclusion_breakdown,
     write_digest_to_file,
 )
 from ..validators import validate_daily_digest
@@ -24,6 +23,7 @@ class DigestSubmitter:
     @staticmethod
     def submit(
         execution_id: str,
+        mission_id: str,
         headlines: list[dict[str, Any]],
         research: list[dict[str, Any]],
         industry: list[dict[str, Any]],
@@ -35,6 +35,7 @@ class DigestSubmitter:
 
         Args:
             execution_id: The execution identifier.
+            mission_id: Mission identifier (e.g., "ai-news").
             headlines: List of headline items (at least 1 required).
             research: List of research items.
             industry: List of industry items.
@@ -56,8 +57,6 @@ class DigestSubmitter:
                 "errors": errors,
                 "message": "Validation failed. Please fix the errors and resubmit.",
             }
-
-        mission_id = metadata.get("mission_id", "ai-news")
         selected_count = DigestSubmitter._count_selected(
             headlines, research, industry, watching
         )

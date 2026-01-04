@@ -135,6 +135,7 @@ def get_recent_headlines(
 @mcp.tool()
 def submit_digest(
     execution_id: str,
+    mission_id: str,
     headlines: list[dict],
     research: list[dict],
     industry: list[dict],
@@ -150,6 +151,7 @@ def submit_digest(
 
     Args:
         execution_id: The execution ID provided in the prompt parameters
+        mission_id: Mission identifier (e.g., "ai-news")
         headlines: List of major news items (required, at least 1)
         research: List of research/paper items (can be empty)
         industry: List of industry/business items (can be empty)
@@ -162,7 +164,6 @@ def submit_digest(
             - score: int (relevance score 1-10)
             - source: str (optional, article source)
         metadata: Execution metadata with fields:
-            - mission_id: str (e.g., "ai-news")
             - articles_analyzed: int
             - web_searches: int
             - fact_checks: int
@@ -173,7 +174,7 @@ def submit_digest(
         Dict with status, file path, and validation results
     """
     return DigestSubmitter.submit(
-        execution_id, headlines, research, industry, watching, excluded, metadata
+        execution_id, mission_id, headlines, research, industry, watching, excluded, metadata
     )
 
 
