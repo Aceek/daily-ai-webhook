@@ -18,7 +18,7 @@ from config import Settings
 from loggers.models import StreamEvent
 
 if TYPE_CHECKING:
-    from utils.execution_dir import ExecutionDirectory
+    from loggers.execution_logger import ExecutionDirectory
 
 
 logger = logging.getLogger("claude-service")

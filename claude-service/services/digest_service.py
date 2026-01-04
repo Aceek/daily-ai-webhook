@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from utils.execution_dir import ExecutionDirectory
+    from loggers.execution_logger import ExecutionDirectory
 
 
 logger = logging.getLogger("claude-service")
