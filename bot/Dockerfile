@@ -20,7 +20,8 @@ ENV CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-dev-shm-usage"
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -r requirements.txt pytest pytest-asyncio httpx
 
 # Copy application code
 COPY . .

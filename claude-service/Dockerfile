@@ -19,11 +19,13 @@ WORKDIR /app
 
 # Copy requirements and install Python dependencies (including MCP)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt "mcp>=0.5.0"
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -r requirements.txt "mcp>=0.5.0" pytest pytest-asyncio httpx
 
 # Copy application code (refactored structure)
 COPY main.py .
 COPY config.py .
+COPY constants.py .
 COPY database.py .
 COPY models.py .
 COPY api/ ./api/
@@ -32,6 +34,8 @@ COPY repositories/ ./repositories/
 COPY loggers/ ./loggers/
 COPY formatters/ ./formatters/
 COPY utils/ ./utils/
+COPY shared/ ./shared/
+COPY tests/ ./tests/
 
 # Copy and setup entrypoint script
 COPY entrypoint.sh /entrypoint.sh
