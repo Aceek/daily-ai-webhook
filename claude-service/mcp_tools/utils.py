@@ -9,6 +9,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from constants import ExclusionReason
+
 
 def get_output_dir() -> Path:
     """Get the output directory for digest files.
@@ -65,10 +67,10 @@ def compute_exclusion_breakdown(excluded: list[dict[str, Any]]) -> dict[str, int
         Dict mapping reason to count.
     """
     breakdown = {
-        "off_topic": 0,
-        "duplicate": 0,
-        "low_priority": 0,
-        "outdated": 0,
+        ExclusionReason.OFF_TOPIC.value: 0,
+        ExclusionReason.DUPLICATE.value: 0,
+        ExclusionReason.LOW_PRIORITY.value: 0,
+        ExclusionReason.OUTDATED.value: 0,
     }
     for item in excluded or []:
         reason = item.get("reason")

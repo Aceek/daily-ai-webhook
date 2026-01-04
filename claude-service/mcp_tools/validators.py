@@ -5,12 +5,14 @@ Provides validation functions for news items and excluded items.
 
 from typing import Any
 
+from constants import MAX_SCORE, MIN_SCORE, ExclusionReason
+
 # Valid exclusion reasons
 VALID_EXCLUSION_REASONS = frozenset([
-    "off_topic",
-    "duplicate",
-    "low_priority",
-    "outdated",
+    ExclusionReason.OFF_TOPIC.value,
+    ExclusionReason.DUPLICATE.value,
+    ExclusionReason.LOW_PRIORITY.value,
+    ExclusionReason.OUTDATED.value,
 ])
 
 # Required fields for news items
@@ -79,8 +81,8 @@ def validate_excluded_items(items: list[dict[str, Any]]) -> list[str]:
         # Validate score range
         if "score" in item:
             score = item["score"]
-            if not isinstance(score, (int, float)) or score < 1 or score > 10:
-                errors.append(f"excluded[{i}]: score must be between 1 and 10")
+            if not isinstance(score, (int, float)) or score < MIN_SCORE or score > MAX_SCORE:
+                errors.append(f"excluded[{i}]: score must be between {MIN_SCORE} and {MAX_SCORE}")
 
     return errors
 
