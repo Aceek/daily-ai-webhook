@@ -1,186 +1,80 @@
 # AI News Bot
 
-Système automatisé de veille AI/ML : n8n collecte → Claude analyse → PostgreSQL stocke → Discord publie.
+Veille AI/ML automatisée : n8n → Claude → PostgreSQL → Discord
 
 ## Stack
 
-| Composant | Tech | Rôle |
-|-----------|------|------|
-| Database | PostgreSQL 16 | Stockage articles, digests, catégories |
-| Orchestration | n8n (Docker) | Cron, RSS, merge, appel service |
-| Intelligence | Claude Service (FastAPI) | Wrapper Claude CLI, MCP tools |
-| Bot | discord.py + FastAPI | Commandes Discord + HTTP API publication |
-| Output | Via Bot API | Publication automatique (n8n → bot → Discord) |
+| Service | Tech | Port |
+|---------|------|------|
+| Database | PostgreSQL 16 | 5433 |
+| Orchestration | n8n | 5678 |
+| Intelligence | FastAPI + Claude CLI + MCP | 8080 |
+| Bot | discord.py + FastAPI | 8000 |
 
-## Architecture
+## Commandes
 
-```
-daily-ai-webhook/
-├── docker-compose.yml           # postgres + n8n + claude-service + discord-bot
-├── claude-service/
-│   ├── main.py                  # FastAPI app init
-│   ├── config.py                # Settings, VALID_MISSIONS
-│   ├── models.py                # SQLModel: Mission, Category, Article, Digest
-│   ├── database.py              # Async engine, session factory
-│   ├── api/
-│   │   ├── routes.py            # Route definitions
-│   │   ├── handlers.py          # /summarize, /log-workflow, /check-urls
-│   │   ├── models.py            # Pydantic request/response models
-│   │   └── converters.py        # Data converters
-│   ├── services/
-│   │   ├── claude_service.py    # Claude CLI orchestration
-│   │   ├── digest_service.py    # Digest file operations
-│   │   └── prompt_builder.py    # Prompt construction
-│   ├── repositories/
-│   │   └── article_repository.py # URL deduplication queries
-│   ├── loggers/
-│   │   ├── execution_logger.py  # Per-execution logging
-│   │   ├── workflow_logger.py   # n8n workflow logging
-│   │   └── models.py            # Log data models
-│   ├── formatters/
-│   │   └── markdown_formatter.py # Summary/workflow MD generation
-│   ├── utils/
-│   │   └── execution_dir.py     # Execution directory management
-│   ├── mcp/
-│   │   ├── server.py            # MCP tools entry point
-│   │   ├── models.py            # Pydantic models
-│   │   ├── validators.py        # Input validation
-│   │   ├── utils.py             # Helper functions
-│   │   ├── logger.py            # MCPLogger
-│   │   ├── repositories/        # DB queries (base, article, category, digest, stats)
-│   │   └── services/            # Business logic (article_query, digest_submitter, weekly_digest)
-│   ├── config/
-│   │   ├── CLAUDE.md            # Instructions agent (production)
-│   │   ├── .mcp.json            # Config MCP tools
-│   │   └── agents/              # Sub-agents fact-checker, topic-diver
-│   └── missions/
-│       ├── _common/             # quality-rules, mcp-usage, research-template
-│       └── ai-news/             # mission, selection, editorial, output-schema
-├── bot/
-│   ├── main.py                  # Discord bot + FastAPI entry point
-│   ├── api.py                   # HTTP API endpoints (/publish, /health)
-│   ├── config.py                # Bot configuration
-│   ├── cogs/
-│   │   ├── daily.py             # /daily command
-│   │   ├── weekly.py            # /weekly command
-│   │   └── admin.py             # /status, /stats commands
-│   ├── services/
-│   │   ├── models.py            # PublishRequest, DigestResult
-│   │   ├── database.py          # Connection pool
-│   │   ├── publisher.py         # Unified digest publication
-│   │   ├── embed_builder.py     # Discord embed construction
-│   │   ├── card_generator.py    # Image card generation
-│   │   ├── image_renderer.py    # HTML to image rendering
-│   │   ├── health_checker.py    # Health check utilities
-│   │   ├── claude_client.py     # Claude API client
-│   │   ├── command_logger.py    # Command logging
-│   │   ├── formatters/          # Item formatting (item_formatter.py)
-│   │   ├── repositories/        # DB queries (digest_repository.py)
-│   │   └── utils/               # Helpers (date_utils.py)
-│   └── Dockerfile
-├── data/                        # articles.json (runtime)
-└── logs/                        # Exécutions (gitignored)
-```
+| Action | Commande |
+|--------|----------|
+| Dev | `docker-compose up -d` |
+| Logs | `docker-compose logs -f claude-service` |
+| Rebuild | `docker-compose up -d --build claude-service` |
+| DB shell | `docker exec -it postgres psql -U ainews` |
 
-**Contextes:** `.claude/` = dev local | `claude-service/` = production container
-
-## Flux d'exécution
+## Flux
 
 ```
-n8n (cron 8h) → RSS feeds → merge/dedup → POST /summarize
-    ↓
-claude-service: write articles.json → claude CLI (agentic)
-    ↓
-Claude: WebSearch + analyse → MCP submit_digest
-    ↓
-MCP: sauvegarde PostgreSQL (articles, catégories, digest) + digest.json
-    ↓
-n8n → POST http://discord-bot:8000/publish
-    ↓
-discord-bot: build embeds → Discord API → update posted_to_discord
-    ↓
-n8n → POST /log-workflow
-    ↓
-discord-bot: /daily, /weekly → query PostgreSQL → embeds
+n8n cron 8h → RSS (7 feeds) → POST /summarize
+  → Claude CLI agentic (MCP tools + WebSearch)
+  → submit_digest → PostgreSQL
+  → POST /publish → Discord embeds
 ```
 
-## MCP Tools
+## Endpoints
 
-| Tool | Usage |
-|------|-------|
-| `get_categories` | Liste catégories existantes |
-| `get_articles` | Query articles avec filtres |
-| `get_article_stats` | Stats par période |
-| `get_recent_headlines` | Titres récents (dédup) |
-| `submit_digest` | Sauvegarde daily + articles en DB |
-| `submit_weekly_digest` | Sauvegarde weekly en DB |
+| Service | Endpoint | Usage |
+|---------|----------|-------|
+| claude-service | `POST /summarize` | Daily digest |
+| claude-service | `POST /analyze-weekly` | Weekly digest |
+| claude-service | `POST /check-urls` | Dedup URLs |
+| discord-bot | `POST /publish` | Publie digest |
 
-## Base de Données
+## Discord
 
-```sql
-missions (id PK, name, description)
-categories (id PK, mission_id FK, name) UNIQUE(mission_id, name)
-articles (id PK, mission_id FK, category_id FK, title, url UNIQUE, source, ...)
-daily_digests (id PK, mission_id FK, date, content JSON) UNIQUE(mission_id, date)
-weekly_digests (id PK, mission_id FK, week_start, week_end, content JSON)
-```
+| Commande | Effet |
+|----------|-------|
+| `/daily` | Dernier digest |
+| `/daily date:2024-12-20` | Digest spécifique |
+| `/weekly` | Weekly cached |
+| `/weekly theme:openai` | Weekly thématique |
+| `/status` | Health check |
 
-## Logs (folder-per-execution)
+## Conventions
 
-```
-logs/
-├── YYYY-MM-DD/
-│   └── HHMMSS_executionid/
-│       ├── SUMMARY.md      # Vue rapide: status, pipeline, top stories
-│       ├── digest.json     # Output structuré pour Discord
-│       ├── research.md     # Document recherche Claude
-│       ├── workflow.md     # Log n8n nodes
-│       └── raw/timeline.json
-└── latest -> symlink
-```
-
-## Variables Environnement
-
-| Variable | Description |
-|----------|-------------|
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Auth PostgreSQL |
-| `N8N_USER`, `N8N_PASSWORD` | Auth n8n |
-| `DISCORD_WEBHOOK_URL` | Backup (non utilisé si bot disponible) |
-| `DISCORD_TOKEN` | Bot interactif |
-| `DISCORD_GUILD_ID` | Optionnel: sync rapide commands |
-| `CLAUDE_MODEL` | sonnet (défaut) |
-| `CLAUDE_TIMEOUT` | 600s |
-
-## Commandes Discord
-
-| Commande | Description |
-|----------|-------------|
-| `/daily` | Dernier daily digest |
-| `/daily date:2024-12-20` | Daily spécifique |
-| `/weekly` | Dernier weekly digest (cached) |
-| `/weekly theme:openai` | Génère analyse thématique on-demand |
-| `/weekly week_start:2024-12-16 week_end:2024-12-22` | Analyse période custom |
-| `/status` | État des services (DB, Claude) |
-| `/stats` | Statistiques articles/digests |
-
-## Standards
-
-**Architecture:**
-- Layered: api/ → services/ → repositories/
+- Layered: `api/` → `services/` → `repositories/`
 - Fichiers < 300 lignes, fonctions < 30 lignes
-- SoC: models/, services/, repositories/, utils/ séparés
-- DRY: pas de code dupliqué
+- Type hints, async I/O, logging structuré
+- Commits: `type(scope): desc` (anglais)
 
-**Code:** Type hints, docstrings, logging structuré (pas print), async pour I/O
-**Bash:** `set -euo pipefail`, variables quotées
-**Docker:** Versions explicites, healthchecks
-**Git:** Conventional commits `type(scope): desc`, pas de mention Claude Code
+## Fichiers sensibles
 
-## Fichiers Sensibles
+Ne jamais commit: `.env`, `n8n-data/`, `logs/`, `*.credentials.json`
 
-Ne jamais commit: `.env`, `*.credentials.json`, `n8n-data/`, `logs/`
+## Contextes
 
-## Documentation
+| Contexte | Chemin | Usage |
+|----------|--------|-------|
+| Dev local | `.claude/` | Cette doc |
+| Production | `claude-service/config/CLAUDE.md` | Agent instructions |
+| Missions | `claude-service/missions/` | Mission definitions |
 
-- `.claude/missions/refactoring/roadmap.md` - Historique refactoring
-- `.claude/missions/refactoring/VERIFICATION.md` - Rapport conformité
+## Documentation détaillée
+
+- [Architecture](docs/ARCHITECTURE.md) - Structure, flux, composants
+- [API](docs/API.md) - Endpoints, MCP tools, schemas
+- [Database](docs/DATABASE.md) - Schema, migrations, queries
+
+## Analyse & Roadmap
+
+- [Analyse Critique](analysis/CRITICAL-REVIEW.md) - Over-engineering, extensibilité, qualité
+- [Recommandations](analysis/RECOMMENDATIONS.md) - Actions priorisées
+- [Plan Refactoring v2](plans/refactoring-v2/MASTER-PLAN.md) - Plan d'exécution 5 phases
