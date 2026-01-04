@@ -6,10 +6,54 @@ Centralizes all settings, constants, and environment variable loading.
 """
 
 import logging
+import os
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from constants import DAILY_MISSION_FILES, WEEKLY_MISSION_FILES
+
+
+# Application version
+APP_VERSION: str = "1.0.0"
+
+# Base tools for Claude CLI (non-MCP)
+BASE_TOOLS: list[str] = ["Read", "WebSearch", "WebFetch", "Write", "Task"]
+
+# MCP server name
+MCP_SERVER_NAME: str = "submit-digest"
+
+# Default mission (configurable via environment)
+DEFAULT_MISSION: str = os.getenv("DEFAULT_MISSION", "ai-news")
+
+
+def get_mcp_tool_names() -> list[str]:
+    """Get list of MCP tool names from server definition.
+
+    Returns:
+        List of fully-qualified MCP tool names.
+    """
+    try:
+        from mcp_tools.server import mcp
+        tool_names = []
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
+            for name in mcp._tool_manager._tools.keys():
+                tool_names.append(f"mcp__{MCP_SERVER_NAME}__{name}")
+        return tool_names
+    except ImportError:
+        return []
+
+
+def build_allowed_tools() -> str:
+    """Build allowed tools string for Claude CLI.
+
+    Returns:
+        Comma-separated string of tool names.
+    """
+    mcp_tools = get_mcp_tool_names()
+    all_tools = BASE_TOOLS + mcp_tools
+    return ",".join(all_tools)
 
 
 class Settings(BaseSettings):
@@ -35,26 +79,52 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "info"
 
-    # Allowed tools for agentic workflow
-    allowed_tools: str = (
-        "Read,WebSearch,WebFetch,Write,Task,"
-        "mcp__submit-digest__submit_digest,"
-        "mcp__submit-digest__submit_weekly_digest,"
-        "mcp__submit-digest__get_categories,"
-        "mcp__submit-digest__get_articles,"
-        "mcp__submit-digest__get_article_stats,"
-        "mcp__submit-digest__get_recent_headlines"
-    )
-
     # Database connection (uses DATABASE_URL without prefix)
     database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
 
+    @property
+    def allowed_tools(self) -> str:
+        """Get allowed tools string (dynamically generated).
 
-# Valid missions (extensible)
-VALID_MISSIONS: list[str] = ["ai-news"]
+        Returns:
+            Comma-separated string of tool names.
+        """
+        return build_allowed_tools()
 
-# Application version
-APP_VERSION: str = "1.0.0"
+
+def discover_missions(missions_path: str | None = None) -> list[str]:
+    """Discover available missions from filesystem.
+
+    Scans missions directory for valid mission folders.
+    A valid mission must have mission.md file.
+
+    Args:
+        missions_path: Optional path to missions directory.
+
+    Returns:
+        Sorted list of discovered mission names.
+    """
+    path = Path(missions_path or Settings().missions_path)
+    if not path.exists():
+        return []
+
+    missions = []
+    for item in path.iterdir():
+        if item.is_dir() and not item.name.startswith("_"):
+            if (item / "mission.md").exists():
+                missions.append(item.name)
+    return sorted(missions)
+
+
+def get_valid_missions() -> list[str]:
+    """Get list of valid missions (cached on first call).
+
+    Returns:
+        List of valid mission names.
+    """
+    if not hasattr(get_valid_missions, "_cache"):
+        get_valid_missions._cache = discover_missions()
+    return get_valid_missions._cache
 
 
 def get_settings() -> Settings:
@@ -92,18 +162,13 @@ def validate_mission(mission: str, missions_path: str) -> tuple[bool, str | None
     Returns:
         Tuple of (is_valid, error_message).
     """
-    if mission not in VALID_MISSIONS:
-        return False, f"Unknown mission: {mission}. Valid missions: {VALID_MISSIONS}"
+    valid_missions = get_valid_missions()
+    if mission not in valid_missions:
+        return False, f"Unknown mission: {mission}. Valid missions: {valid_missions}"
 
     mission_path = Path(missions_path) / mission
-    required_files = [
-        "mission.md",
-        "selection-rules.md",
-        "editorial-guide.md",
-        "output-schema.md",
-    ]
 
-    for f in required_files:
+    for f in DAILY_MISSION_FILES:
         if not (mission_path / f).exists():
             return False, f"Missing mission file: {mission_path / f}"
 
@@ -123,13 +188,13 @@ def validate_weekly_mission(
     Returns:
         Tuple of (is_valid, error_message).
     """
-    if mission not in VALID_MISSIONS:
-        return False, f"Unknown mission: {mission}. Valid missions: {VALID_MISSIONS}"
+    valid_missions = get_valid_missions()
+    if mission not in valid_missions:
+        return False, f"Unknown mission: {mission}. Valid missions: {valid_missions}"
 
     weekly_path = Path(missions_path) / mission / "weekly"
-    required_files = ["mission.md", "analysis-rules.md", "output-schema.md"]
 
-    for f in required_files:
+    for f in WEEKLY_MISSION_FILES:
         if not (weekly_path / f).exists():
             return False, f"Missing weekly mission file: {weekly_path / f}"
 
