@@ -1,6 +1,6 @@
 """Loggers module - Execution and workflow logging."""
 
-from loggers.execution_logger import ExecutionLogger, create_execution_log
+from loggers.execution_logger import create_execution_log
 from loggers.models import (
     ArticleLog,
     DiscordChannelLog,
@@ -12,7 +12,11 @@ from loggers.models import (
     StreamEvent,
     WorkflowLog,
 )
-from loggers.workflow_logger import WorkflowLogger
+from loggers.unified_logger import UnifiedLogger, get_logger
+
+# Backward compatibility aliases
+ExecutionLogger = UnifiedLogger
+WorkflowLogger = UnifiedLogger
 
 __all__ = [
     "ArticleLog",
@@ -24,7 +28,9 @@ __all__ = [
     "ExecutionMetrics",
     "NodeExecutionLog",
     "StreamEvent",
+    "UnifiedLogger",
     "WorkflowLog",
     "WorkflowLogger",
     "create_execution_log",
+    "get_logger",
 ]

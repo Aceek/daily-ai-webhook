@@ -11,10 +11,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from api.routes import create_routers
-from config import Settings, configure_logging, get_settings
+from config import configure_logging, get_settings
 from database import close_db, init_db, seed_missions
-from loggers.execution_logger import ExecutionLogger
-from loggers.workflow_logger import WorkflowLogger
+from loggers import get_logger
 
 
 def create_app() -> FastAPI:
@@ -26,9 +25,8 @@ def create_app() -> FastAPI:
     settings = get_settings()
     logger = configure_logging(settings)
 
-    # Initialize loggers
-    execution_logger = ExecutionLogger(logs_dir=settings.logs_path)
-    workflow_logger = WorkflowLogger(logs_dir=settings.logs_path)
+    # Initialize unified logger (singleton)
+    unified_logger = get_logger(logs_dir=settings.logs_path)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -57,7 +55,7 @@ def create_app() -> FastAPI:
     )
 
     # Register routes
-    api_router = create_routers(settings, execution_logger, workflow_logger)
+    api_router = create_routers(settings, unified_logger, unified_logger)
     app.include_router(api_router)
 
     return app

@@ -10,15 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
-class ArticleLog(BaseModel):
-    """Article data for logging."""
-
-    title: str
-    url: str
-    source: str
-    pub_date: str
-    description_preview: str = Field(default="", description="First 100 chars")
+from shared.models import ArticleLog
 
 
 class StreamEvent(BaseModel):

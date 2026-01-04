@@ -6,11 +6,14 @@ Handles workflow logs - saves to execution directory if available,
 otherwise creates standalone log.
 """
 
+import logging
 import re
 from pathlib import Path
 
 from formatters.markdown_formatter import format_workflow_markdown
 from loggers.models import WorkflowLog
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowLogger:
@@ -130,8 +133,12 @@ class WorkflowLogger:
             content = re.sub(storage_pattern, storage_lines, content)
 
             summary_path.write_text(content, encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "Failed to update SUMMARY.md storage status: %s (file: %s)",
+                e,
+                summary_path,
+            )
 
     def _build_storage_update(self, workflow_log: WorkflowLog) -> str:
         """Build storage section update lines.
