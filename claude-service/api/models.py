@@ -10,16 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from loggers.models import StreamEvent
-
-
-class Article(BaseModel):
-    """Represents a news article to analyze."""
-
-    title: str
-    url: str
-    description: str = ""
-    pub_date: str = ""
-    source: str = ""
+from shared.models import ArticleInput as Article
 
 
 class SummarizeRequest(BaseModel):

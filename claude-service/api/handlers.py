@@ -26,8 +26,7 @@ from api.models import (
 )
 from config import Settings, validate_mission, validate_weekly_mission
 from database import get_engine
-from loggers.execution_logger import ExecutionLogger, create_execution_log
-from loggers.workflow_logger import WorkflowLogger
+from loggers import UnifiedLogger, create_execution_log
 from repositories.article_repository import check_duplicate_urls
 from services.claude_service import call_claude_cli, write_articles_file
 from services.digest_service import read_digest_file
@@ -43,7 +42,7 @@ logger = logging.getLogger("claude-service")
 async def handle_summarize(
     request: SummarizeRequest,
     settings: Settings,
-    execution_logger: ExecutionLogger,
+    execution_logger: UnifiedLogger,
 ) -> SummarizeResponse:
     """Handle /summarize endpoint logic.
 
@@ -114,7 +113,7 @@ def _build_summarize_response(
     digest: dict | None,
     duration: float,
     execution_id: str,
-    execution_logger: ExecutionLogger,
+    execution_logger: UnifiedLogger,
 ) -> SummarizeResponse:
     """Build response for /summarize endpoint."""
     exec_log = create_execution_log(
@@ -159,7 +158,7 @@ def _build_summarize_response(
 async def handle_analyze_weekly(
     request: AnalyzeWeeklyRequest,
     settings: Settings,
-    execution_logger: ExecutionLogger,
+    execution_logger: UnifiedLogger,
 ) -> AnalyzeWeeklyResponse:
     """Handle /analyze-weekly endpoint logic."""
     logger.info(
@@ -267,7 +266,7 @@ def _determine_result_status(
 
 async def handle_log_workflow(
     request: WorkflowLogRequest,
-    workflow_logger: WorkflowLogger,
+    workflow_logger: UnifiedLogger,
 ) -> WorkflowLogResponse:
     """Handle /log-workflow endpoint logic."""
     source_type = "command" if request.source == "discord_command" else "workflow"
@@ -275,7 +274,7 @@ async def handle_log_workflow(
 
     try:
         workflow_log = convert_workflow_request(request)
-        log_path = workflow_logger.save(workflow_log)
+        log_path = workflow_logger.save_workflow(workflow_log)
         logger.info("Workflow log saved: %s", log_path)
         return WorkflowLogResponse(success=True, log_file=str(log_path))
     except Exception as e:
