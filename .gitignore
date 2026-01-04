@@ -45,3 +45,7 @@ venv/
 .idea/
 *.swp
 *.swo
+
+# Claude usage stats
+.claude/usage-stats.json
+claude-service/.claude/
