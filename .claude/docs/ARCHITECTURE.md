@@ -7,23 +7,22 @@ daily-ai-webhook/
 ├── docker-compose.yml
 ├── claude-service/          # FastAPI + Claude CLI + MCP
 │   ├── main.py              # App init, lifespan
-│   ├── config.py            # Settings, VALID_MISSIONS
+│   ├── config.py            # Settings, discover_missions()
 │   ├── models.py            # SQLModel ORM
 │   ├── database.py          # Async session factory
 │   ├── api/
-│   │   ├── routes.py        # Router
-│   │   ├── handlers.py      # Endpoint logic
-│   │   ├── models.py        # Pydantic I/O
-│   │   └── converters.py    # Data transforms
+│   │   ├── routes.py        # Router + endpoint logic
+│   │   └── models.py        # Pydantic I/O
 │   ├── services/
-│   │   ├── claude_service.py    # CLI orchestration
+│   │   ├── summarize_service.py # Daily digest orchestration
+│   │   ├── weekly_service.py    # Weekly digest orchestration
+│   │   ├── claude_service.py    # CLI invocation
 │   │   ├── digest_service.py    # Digest file ops
 │   │   └── prompt_builder.py    # Prompt construction
 │   ├── repositories/
 │   │   └── article_repository.py
 │   ├── loggers/
-│   │   ├── execution_logger.py
-│   │   ├── workflow_logger.py
+│   │   ├── unified_logger.py    # Unified logging
 │   │   └── models.py
 │   ├── formatters/
 │   │   └── markdown_formatter.py

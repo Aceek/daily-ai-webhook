@@ -73,8 +73,8 @@ Ne jamais commit: `.env`, `n8n-data/`, `logs/`, `*.credentials.json`
 - [API](docs/API.md) - Endpoints, MCP tools, schemas
 - [Database](docs/DATABASE.md) - Schema, migrations, queries
 
-## Analyse & Roadmap
+## Refactoring (2026-01)
 
-- [Analyse Critique](analysis/CRITICAL-REVIEW.md) - Over-engineering, extensibilité, qualité
-- [Recommandations](analysis/RECOMMENDATIONS.md) - Actions priorisées
-- [Plan Refactoring v2](plans/refactoring-v2/MASTER-PLAN.md) - Plan d'exécution 5 phases
+- [Post-Refactoring Review](analysis/POST-REFACTORING-REVIEW.md) - État actuel après refactoring
+- [Action Items](analysis/ACTION-ITEMS.md) - Améliorations restantes
+- [Plans d'exécution](../../docs/plans/) - Phases 0-4 + cleanup
