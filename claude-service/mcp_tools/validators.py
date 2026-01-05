@@ -124,10 +124,8 @@ def validate_daily_digest(
     errors.extend(validate_excluded_items(excluded))
 
     # Validate metadata
-    required_meta = ["articles_analyzed", "web_searches", "research_doc"]
-    for field in required_meta:
-        if field not in metadata:
-            errors.append(f"metadata: missing '{field}'")
+    if "articles_analyzed" not in metadata:
+        errors.append("metadata: missing 'articles_analyzed'")
 
     return errors
 

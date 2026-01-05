@@ -76,7 +76,6 @@ class WeeklyService:
             week_start=request.week_start,
             week_end=request.week_end,
             execution_id=execution_id,
-            research_path=str(exec_dir.research_path),
             theme=request.theme,
             workflow_execution_id=request.workflow_execution_id,
         )

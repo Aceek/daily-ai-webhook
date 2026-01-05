@@ -12,7 +12,6 @@ def build_prompt(
     mission: str,
     articles_path: str,
     execution_id: str,
-    research_path: str,
     workflow_execution_id: str | None = None,
 ) -> str:
     """Build minimal prompt for multi-mission architecture.
@@ -23,7 +22,6 @@ def build_prompt(
         mission: Name of the mission to execute.
         articles_path: Path to the articles JSON file.
         execution_id: Unique execution ID for this run.
-        research_path: Path where Claude should write the research document.
         workflow_execution_id: Optional n8n workflow execution ID.
 
     Returns:
@@ -34,7 +32,6 @@ def build_prompt(
 mission: {mission}
 articles_path: {articles_path}
 execution_id: {execution_id}
-research_path: {research_path}
 workflow_id: {workflow_execution_id or "standalone"}
 date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
@@ -52,7 +49,6 @@ def build_weekly_prompt(
     week_start: str,
     week_end: str,
     execution_id: str,
-    research_path: str,
     theme: str | None = None,
     workflow_execution_id: str | None = None,
 ) -> str:
@@ -65,7 +61,6 @@ def build_weekly_prompt(
         week_start: Start of week (YYYY-MM-DD).
         week_end: End of week (YYYY-MM-DD).
         execution_id: Unique execution ID for this run.
-        research_path: Path where Claude should write the research document.
         theme: Optional theme to focus the analysis on.
         workflow_execution_id: Optional n8n workflow execution ID.
 
@@ -73,7 +68,7 @@ def build_weekly_prompt(
         Prompt string for Claude CLI.
     """
     theme_instruction = _build_theme_instruction(theme)
-    instructions = _build_weekly_instructions(mission, week_start, week_end, research_path)
+    instructions = _build_weekly_instructions(mission, week_start, week_end)
 
     return f"""=== WEEKLY ANALYSIS PARAMETERS ===
 
@@ -81,7 +76,6 @@ mission: {mission}
 week_start: {week_start}
 week_end: {week_end}
 execution_id: {execution_id}
-research_path: {research_path}
 workflow_id: {workflow_execution_id or "standalone"}
 date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 {theme_instruction}
@@ -105,7 +99,6 @@ def _build_weekly_instructions(
     mission: str,
     week_start: str,
     week_end: str,
-    research_path: str,
 ) -> str:
     """Build weekly analysis instructions."""
     return f"""=== INSTRUCTIONS ===
@@ -125,8 +118,6 @@ This is a WEEKLY DIGEST analysis. You must:
 
 3. Analyze trends and patterns from the week's articles
 
-4. Write your research document to: {research_path}
-
-5. Submit via submit_weekly_digest with all required fields
+4. Submit via submit_weekly_digest with all required fields
 
 DO NOT use submit_digest - use submit_weekly_digest for weekly analysis."""

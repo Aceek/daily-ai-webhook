@@ -170,11 +170,11 @@ def _build_pipeline_status(
 
     # Get metadata
     meta = digest.get("metadata", {}) if digest else {}
-    web_searches = meta.get("web_searches", 0)
-    deep_dives = meta.get("deep_dives", 0)
+    selected = meta.get("selected_count", 0)
+    excluded = meta.get("excluded_count", 0)
 
     return f"""| n8n collect | {collect_status} {log.metrics.articles_received} articles |
-| Claude analyze | {claude_status} {web_searches} searches, {deep_dives} deep-dives |
+| Claude analyze | {claude_status} {selected} selected, {excluded} excluded |
 | Discord send | {discord_status} |"""
 
 

@@ -165,10 +165,7 @@ def submit_digest(
             - source: str (optional, article source)
         metadata: Execution metadata with fields:
             - articles_analyzed: int
-            - web_searches: int
-            - fact_checks: int
-            - deep_dives: int
-            - research_doc: str (path to research document)
+            - mission_id: str (optional, defaults to "ai-news")
 
     Returns:
         Dict with status, file path, and validation results

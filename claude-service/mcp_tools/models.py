@@ -14,10 +14,7 @@ class DigestMetadata(BaseModel):
     """Metadata for digest submission."""
 
     articles_analyzed: int = Field(..., ge=0, description="Number of articles analyzed")
-    web_searches: int = Field(default=0, ge=0, description="Number of web searches")
-    fact_checks: int = Field(default=0, ge=0, description="Number of fact checks")
-    deep_dives: int = Field(default=0, ge=0, description="Number of deep dives")
-    research_doc: str = Field(..., description="Path to research document")
+    mission_id: str = Field(default="ai-news", description="Mission identifier")
 
 
 class DailyDigest(BaseModel):

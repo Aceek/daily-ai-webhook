@@ -80,7 +80,6 @@ class SummarizeService:
             mission=request.mission,
             articles_path=str(articles_path),
             execution_id=execution_id,
-            research_path=str(exec_dir.research_path),
             workflow_execution_id=request.workflow_execution_id,
         )
 

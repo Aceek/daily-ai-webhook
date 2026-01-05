@@ -1,228 +1,84 @@
 # MCP Tools Reference
 
-## Daily Digest Workflow
+## Query Tools
 
-### submit_digest (obligatoire)
+### get_categories(mission_id, date_from?, date_to?)
 
-Tu DOIS utiliser `submit_digest` pour soumettre le résultat final du daily digest.
-NE JAMAIS retourner le JSON en texte libre.
+Récupère catégories existantes. **Appeler AVANT classification (Daily).**
+
+```json
+{"categories": [{"id": 1, "name": "LLM Models"}], "count": 2}
+```
+
+### get_recent_headlines(mission_id, days=3)
+
+Headlines récentes pour déduplication. **Appeler AVANT sélection (Daily).**
+
+```json
+{"headlines": [{"title": "...", "url": "...", "date": "...", "category": "..."}]}
+```
+
+### get_articles(mission_id, categories?, date_from?, date_to?, limit=100)
+
+Articles filtrés. **Weekly uniquement.**
+
+```json
+{"articles": [{"id": 1, "title": "...", "url": "...", "source": "...", "category": "...", "pub_date": "..."}], "count": 45}
+```
+
+### get_article_stats(mission_id, date_from, date_to)
+
+Stats volume/distribution. **Weekly uniquement.**
+
+```json
+{"total_articles": 156, "by_category": {...}, "by_source": {...}, "by_day": {...}}
+```
+
+---
+
+## Submit Tools
+
+### submit_digest (Daily)
 
 ```
 submit_digest(
-    execution_id: str,      # ID fourni dans les paramètres d'exécution
-    headlines: list[dict],  # News majeures (au moins 1 requis)
-    research: list[dict],   # Papers/recherches (peut être vide)
-    industry: list[dict],   # Business/produits (peut être vide)
-    watching: list[dict],   # Tendances à suivre (peut être vide)
-    metadata: dict          # Métriques d'exécution
+  execution_id: str,
+  headlines: list[dict],   # Au moins 1 requis
+  research: list[dict],
+  industry: list[dict],
+  watching: list[dict],
+  excluded: list[dict],    # Tous les non-sélectionnés
+  metadata: dict
 )
 ```
 
-**Format news items:**
+**Article:** `{title, summary, url, source, category, confidence: "high|medium"}`
 
-```json
-{
-    "title": "Titre concis (max 100 chars)",
-    "summary": "Résumé factuel 2-3 phrases (max 300 chars)",
-    "url": "https://source-primaire.com/article",
-    "source": "Nom de la source",
-    "category": "headlines|research|industry|watching",
-    "confidence": "high|medium"
-}
-```
+**Excluded:** `{url, title, source, category, reason, score}`
 
-**Format metadata:**
+**Metadata:** `{mission_id, articles_analyzed, selected_count, excluded_count}`
 
-```json
-{
-    "mission_id": "ai-news",
-    "articles_analyzed": 24,
-    "web_searches": 4,
-    "fact_checks": 1,
-    "deep_dives": 1,
-    "research_doc": "/chemin/vers/research.md",
-    "total_news_included": 6,
-    "total_news_excluded": 4
-}
-```
-
----
-
-## Database Query Tools
-
-Ces outils permettent d'interroger la base de données des articles.
-
-### get_categories
-
-Récupère les catégories existantes pour une mission.
-
-**DAILY** - Classification des nouveaux articles:
-- Appeler AVANT de classifier les articles RSS
-- But: Réutiliser les catégories existantes, éviter les doublons
-- ❌ Sans: Claude crée "LLM Updates" alors que "LLM Models" existe
-- ✅ Avec: Claude voit "LLM Models" et l'utilise
-
-**WEEKLY** - Analyse uniquement:
-- Appeler pour comprendre la distribution des catégories
-- But: Analyse (les articles sont déjà classifiés en DB)
-- Pas de création de catégories dans ce workflow
-
-```
-get_categories(
-    mission_id: str,           # ex: "ai-news"
-    date_from: str | None,     # YYYY-MM-DD (optionnel)
-    date_to: str | None        # YYYY-MM-DD (optionnel)
-)
-```
-
-**Retour:**
-```json
-{
-    "status": "success",
-    "categories": [
-        {"id": 1, "name": "LLM Models"},
-        {"id": 2, "name": "AI Regulation"}
-    ],
-    "count": 2
-}
-```
-
-### get_articles
-
-Récupère des articles avec filtres optionnels.
-
-```
-get_articles(
-    mission_id: str,              # ex: "ai-news"
-    categories: list[str] | None, # noms de catégories (optionnel)
-    date_from: str | None,        # YYYY-MM-DD (optionnel)
-    date_to: str | None,          # YYYY-MM-DD (optionnel)
-    limit: int = 100              # max 500
-)
-```
-
-**Retour:**
-```json
-{
-    "status": "success",
-    "articles": [
-        {
-            "id": 123,
-            "title": "GPT-5 Released",
-            "url": "https://...",
-            "source": "OpenAI",
-            "category": "LLM Models",
-            "pub_date": "2024-12-20"
-        }
-    ],
-    "count": 45
-}
-```
-
-### get_article_stats
-
-Statistiques sur les articles dans une période.
-**Utilise cet outil avant un weekly digest** pour comprendre le volume.
-
-```
-get_article_stats(
-    mission_id: str,    # ex: "ai-news"
-    date_from: str,     # YYYY-MM-DD (requis)
-    date_to: str        # YYYY-MM-DD (requis)
-)
-```
-
-**Retour:**
-```json
-{
-    "status": "success",
-    "total_articles": 156,
-    "by_category": {
-        "LLM Models": 45,
-        "AI Regulation": 23
-    },
-    "by_source": {
-        "TechCrunch": 34,
-        "OpenAI": 12
-    },
-    "by_day": {
-        "2024-12-16": 22,
-        "2024-12-17": 28
-    }
-}
-```
-
----
-
-## Weekly Digest Workflow
-
-### submit_weekly_digest
-
-Soumet un digest hebdomadaire avec analyse de tendances.
-Utilise les DB query tools pour récupérer les données avant d'analyser.
+### submit_weekly_digest (Weekly)
 
 ```
 submit_weekly_digest(
-    execution_id: str,
-    mission_id: str,           # ex: "ai-news"
-    week_start: str,           # YYYY-MM-DD
-    week_end: str,             # YYYY-MM-DD
-    summary: str,              # Résumé exécutif (2-3 paragraphes)
-    trends: list[dict],        # Tendances identifiées
-    top_stories: list[dict],   # Histoires clés de la semaine
-    category_analysis: dict,   # Analyse par catégorie
-    metadata: dict,
-    is_standard: bool = True   # false si thème custom
+  execution_id, mission_id, week_start, week_end,
+  summary, trends, top_stories, category_analysis,
+  metadata, is_standard=true
 )
 ```
 
-**Format trends:**
-```json
-{
-    "name": "Open-source AI acceleration",
-    "description": "Major labs releasing more open models",
-    "evidence": ["Article 1", "Article 2"],
-    "direction": "rising"  // rising|stable|declining
-}
-```
+**Trend:** `{name, description, evidence: [], direction: "rising|stable|declining"}`
 
-**Format top_stories:**
-```json
-{
-    "title": "OpenAI releases GPT-5",
-    "summary": "The new model shows...",
-    "url": "https://...",
-    "impact": "Sets new benchmark for..."
-}
-```
+**Top story:** `{title, summary, url, impact}`
 
 ---
 
-## Workflow Complet
+## Erreurs courantes
 
-### Daily Digest
-
-1. `get_categories()` - récupérer catégories pour classification
-2. Analyse les articles RSS en réutilisant les catégories existantes
-3. Effectue recherches web complémentaires
-4. Écris le document de recherche (Write)
-5. Appelle `submit_digest` UNE SEULE FOIS → sauvegarde articles + catégories
-
-### Weekly Digest
-
-1. `get_article_stats()` - comprendre le volume
-2. `get_categories()` - voir la distribution (analyse, pas classification)
-3. `get_articles()` - récupérer les articles de la période
-4. Analyse les tendances et patterns
-5. Appelle `submit_weekly_digest` UNE SEULE FOIS → sauvegarde digest uniquement
-
----
-
-## Erreurs Courantes
-
-- **[Daily]** Ne pas appeler `get_categories` avant de classifier (crée des doublons)
-- Oublier un champ requis dans les items
-- Ne pas appeler submit_digest (le workflow échoue)
-- Appeler submit plusieurs fois (seul le dernier compte)
-- Mettre confidence: "low" (interdit, exclure plutôt)
-- Oublier mission_id dans metadata
+| Erreur | Solution |
+|--------|----------|
+| Catégories dupliquées | Appeler `get_categories` AVANT classification |
+| Articles dupliqués | Appeler `get_recent_headlines` AVANT sélection |
+| Workflow échoue | Toujours appeler `submit_digest` |
+| confidence: "low" | Exclure l'article plutôt |

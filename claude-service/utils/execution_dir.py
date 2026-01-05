@@ -6,7 +6,6 @@ Handles the folder-per-execution structure:
     logs/YYYY-MM-DD/HHMMSS_executionid/
         |- SUMMARY.md
         |- digest.json
-        |- research.md
         |- workflow.md
         |- raw/timeline.json
 """
@@ -74,11 +73,6 @@ class ExecutionDirectory:
     def digest_path(self) -> Path:
         """Return path for digest.json."""
         return self.exec_dir / "digest.json"
-
-    @property
-    def research_path(self) -> Path:
-        """Return path for research.md."""
-        return self.exec_dir / "research.md"
 
     @property
     def summary_path(self) -> Path:

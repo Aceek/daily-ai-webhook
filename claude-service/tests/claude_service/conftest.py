@@ -64,7 +64,6 @@ def mock_logger():
     # Mock ExecutionDirectory
     exec_dir = MagicMock()
     exec_dir.path = Path("/tmp/test-exec")
-    exec_dir.research_path = Path("/tmp/test-exec/research")
     exec_dir.logs_path = Path("/tmp/test-exec/logs")
 
     logger.create_execution_dir = MagicMock(return_value=exec_dir)
@@ -79,7 +78,6 @@ def mock_exec_dir():
     """Mock ExecutionDirectory."""
     exec_dir = MagicMock()
     exec_dir.path = Path("/tmp/test-exec")
-    exec_dir.research_path = Path("/tmp/test-exec/research")
     exec_dir.logs_path = Path("/tmp/test-exec/logs")
     exec_dir.digest_path = Path("/tmp/test-exec/digest.json")
     return exec_dir
