@@ -2,31 +2,44 @@
 set -e
 
 # Set permissive umask for all files created by Claude CLI
-# 002 = files: rw-rw-r--, dirs: rwxrwxr-x
 umask 002
 
 # Setup Claude CLI config
-# .claude/ is now mounted directly from host to /app/.claude/
-# We need to symlink it to /root/.claude for Claude CLI to find it
+# Copy config files to /root/.claude (not symlink) so Claude CLI can write runtime data
+# without polluting the mounted /app/.claude directory
 setup_claude_config() {
     echo "[entrypoint] Setting up Claude CLI config..."
 
-    # Create symlink from /root/.claude to /app/.claude
+    # Create /root/.claude directory
+    rm -rf /root/.claude
+    mkdir -p /root/.claude
+
+    # Copy config files from mounted volume
     if [ -d "/app/.claude" ]; then
-        # Remove existing /root/.claude if it exists
-        rm -rf /root/.claude
-        ln -sf /app/.claude /root/.claude
-        echo "  - Symlinked /app/.claude -> /root/.claude"
+        # Copy CLAUDE.md
+        [ -f "/app/.claude/CLAUDE.md" ] && cp /app/.claude/CLAUDE.md /root/.claude/
+
+        # Copy missions directory
+        [ -d "/app/.claude/missions" ] && cp -r /app/.claude/missions /root/.claude/
+
+        # Copy docs directory if exists
+        [ -d "/app/.claude/docs" ] && cp -r /app/.claude/docs /root/.claude/
+
+        # Copy credentials if exists
+        [ -f "/app/.claude/.credentials.json" ] && cp /app/.claude/.credentials.json /root/.claude/
+
+        echo "  - Copied config files to /root/.claude"
     fi
 
     # Copy .mcp.json to locations where Claude CLI looks for it
     if [ -f "/app/.claude/.mcp.json" ]; then
+        cp /app/.claude/.mcp.json /root/.claude/.mcp.json
         cp /app/.claude/.mcp.json /root/.mcp.json
         cp /app/.claude/.mcp.json /app/.mcp.json
-        echo "  - Copied .mcp.json to /root/ and /app/"
+        echo "  - Copied .mcp.json to /root/.claude/, /root/ and /app/"
     fi
 
-    echo "[entrypoint] Config setup complete."
+    echo "[entrypoint] Config setup complete (runtime data will stay in container)."
 }
 
 # Fix permissions on directories

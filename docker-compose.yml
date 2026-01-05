@@ -64,8 +64,8 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-ainews}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ainews}
     volumes:
       # Centralized Claude config (.claude/ contains CLAUDE.md, missions/, etc.)
-      # Not read-only because Claude CLI writes todos/debug/stats here
-      - ./claude-service/.claude:/app/.claude
+      # Read-only: entrypoint copies to /root/.claude for Claude CLI runtime data
+      - ./claude-service/.claude:/app/.claude:ro
       # MCP server code (named mcp_tools to avoid conflict with mcp package)
       - ./claude-service/mcp_tools:/app/mcp_tools:ro
       # Data interchange (articles.json)
