@@ -48,21 +48,19 @@
 
 ### Output
 
-**Selected** (adapté au cycle):
-- Jour calme: 1-3 articles
-- Normal: 4-8 articles
-- Breaking news: 10+ si justifié
+**Selected**: Être GÉNÉREUX. Inclure tous les articles pertinents sans limite fixe. 10-15 articles acceptable si contenu intéressant.
 
-**Excluded** (tous les autres):
+**Excluded** (uniquement si vraiment pas pertinent):
 
 | Raison | Usage |
 |--------|-------|
-| `off_topic` | Pas AI/ML |
-| `duplicate` | Déjà couvert |
-| `low_priority` | Pertinent mais pas important |
-| `outdated` | >48h |
+| `off_topic` | Clairement pas AI/ML |
+| `duplicate` | Exactement même sujet déjà couvert |
+| `low_priority` | Très mineur, aucun intérêt |
 
-Score: 1-3 (off_topic), 4-5 (low), 6-7 (bon mais exclu), 8-10 (devrait être selected)
+Note: Ne PAS utiliser `outdated` - le filtre n8n gère déjà (<7 jours)
+
+Score: 1-3 (off_topic), 4-5 (low), 6-7 (borderline), 8-10 (should be selected)
 
 ### Finalisation
 
@@ -72,6 +70,7 @@ submit_digest(
   headlines=[...],
   research=[...],
   industry=[...],
+  tools=[...],      # AI dev tools: Claude Code, Cursor, MCP, SDK
   watching=[...],
   excluded=[{url, title, source, category, reason, score}],
   metadata={mission_id, articles_analyzed, ...}

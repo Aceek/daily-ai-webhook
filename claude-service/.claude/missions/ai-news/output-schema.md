@@ -9,7 +9,7 @@ JSON soumis via `submit_digest`.
   "digest": {
     "date": "2024-12-22",
     "headline_count": 4,
-    "categories": ["headlines", "research", "industry", "watching"]
+    "categories": ["headlines", "research", "industry", "tools", "watching"]
   },
   "headlines": [{
     "title": "Titre concis",
@@ -40,6 +40,16 @@ JSON soumis via `submit_digest`.
     "confidence": "medium",
     "emoji": "💼",
     "importance": "standard"
+  }],
+  "tools": [{
+    "title": "Claude Code 2.1 released",
+    "summary": "New features for agentic workflows",
+    "url": "https://anthropic.com/...",
+    "source": "Anthropic",
+    "category": "tools",
+    "confidence": "high",
+    "emoji": "🛠️",
+    "importance": "major"
   }],
   "watching": [{
     "title": "Tendance à suivre",
@@ -77,7 +87,7 @@ JSON soumis via `submit_digest`.
 | `summary` | Max 300 chars, 2-3 phrases |
 | `url` | URL source primaire |
 | `source` | Nom lisible |
-| `category` | `headlines`, `research`, `industry`, `watching` |
+| `category` | `headlines`, `research`, `industry`, `tools`, `watching` |
 | `confidence` | `high` (officiel) ou `medium` (réputé) |
 | `emoji` | Un seul, représente le sujet |
 | `importance` | `breaking`, `major`, `standard` |
@@ -114,12 +124,16 @@ JSON soumis via `submit_digest`.
 | Open source | 🌐 🔓 |
 | Security | 🛡️ 🔒 |
 | Agents | 🤖 🦾 |
+| Tools | 🛠️ ⚙️ 🔧 |
 
 ## Validation
 
 1. Au moins 1 item dans `headlines`
 2. URLs valides, pas de doublons
-3. Volume adapté: 1-3 (calme), 4-8 (normal), 10+ (breaking)
-4. TOUS articles soumis (selected + excluded)
-5. `confidence: low` → exclure
-6. `breaking` → max 1 par digest
+3. TOUS articles soumis (selected + excluded)
+4. `confidence: low` → exclure
+5. `breaking` → max 1 par digest
+
+## Volume
+
+Pas de nombre fixe. Sélectionner **généreusement** tous les articles pertinents. Un digest avec 10-15 articles est parfaitement acceptable si le contenu est intéressant.

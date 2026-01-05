@@ -139,6 +139,7 @@ def submit_digest(
     headlines: list[dict],
     research: list[dict],
     industry: list[dict],
+    tools: list[dict],
     watching: list[dict],
     excluded: list[dict],
     metadata: dict,
@@ -155,6 +156,7 @@ def submit_digest(
         headlines: List of major news items (required, at least 1)
         research: List of research/paper items (can be empty)
         industry: List of industry/business items (can be empty)
+        tools: List of AI dev tools items - Claude Code, Cursor, MCP, SDK (can be empty)
         watching: List of trends to watch (can be empty)
         excluded: List of excluded articles with minimal info:
             - url: str (article URL)
@@ -171,7 +173,7 @@ def submit_digest(
         Dict with status, file path, and validation results
     """
     return DigestSubmitter.submit(
-        execution_id, mission_id, headlines, research, industry, watching, excluded, metadata
+        execution_id, mission_id, headlines, research, industry, tools, watching, excluded, metadata
     )
 
 

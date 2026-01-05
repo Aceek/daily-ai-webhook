@@ -91,6 +91,7 @@ def validate_daily_digest(
     headlines: list[dict[str, Any]],
     research: list[dict[str, Any]],
     industry: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
     watching: list[dict[str, Any]],
     excluded: list[dict[str, Any]],
     metadata: dict[str, Any],
@@ -101,6 +102,7 @@ def validate_daily_digest(
         headlines: List of headline items.
         research: List of research items.
         industry: List of industry items.
+        tools: List of AI dev tools items.
         watching: List of watching items.
         excluded: List of excluded items.
         metadata: Submission metadata.
@@ -118,6 +120,7 @@ def validate_daily_digest(
     errors.extend(validate_news_items(headlines, "headlines"))
     errors.extend(validate_news_items(research, "research"))
     errors.extend(validate_news_items(industry, "industry"))
+    errors.extend(validate_news_items(tools, "tools"))
     errors.extend(validate_news_items(watching, "watching"))
 
     # Validate excluded items

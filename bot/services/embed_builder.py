@@ -23,6 +23,7 @@ class EmbedColors:
     HEADLINES = discord.Color.from_rgb(239, 68, 68)      # Red
     RESEARCH = discord.Color.from_rgb(34, 197, 94)       # Green
     INDUSTRY = discord.Color.from_rgb(99, 102, 241)      # Indigo
+    TOOLS = discord.Color.from_rgb(14, 165, 233)         # Sky blue
     WATCHING = discord.Color.from_rgb(234, 179, 8)       # Yellow/Amber
     TRENDS = discord.Color.from_rgb(168, 85, 247)        # Purple
     TOP_STORIES = discord.Color.from_rgb(245, 158, 11)   # Amber/Gold
@@ -48,6 +49,12 @@ CATEGORY_EMBED_CONFIG = {
         "description": "Business moves, acquisitions, and market updates",
         "color": EmbedColors.INDUSTRY,
         "formatter_config": CategoryConfig(emoji="💼", link_text="Read more"),
+    },
+    "tools": {
+        "title": "🛠️ AI Dev Tools",
+        "description": "Claude Code, Cursor, MCP, and developer tooling updates",
+        "color": EmbedColors.TOOLS,
+        "formatter_config": CategoryConfig(emoji="⚙️", link_text="Read more"),
     },
     "watching": {
         "title": "👀 Worth Watching",
@@ -123,6 +130,11 @@ def build_research_embed(research: list[dict[str, Any]]) -> discord.Embed:
 def build_industry_embed(industry: list[dict[str, Any]]) -> discord.Embed:
     """Build industry embed for daily digest."""
     return build_category_embed("industry", industry)
+
+
+def build_tools_embed(tools: list[dict[str, Any]]) -> discord.Embed:
+    """Build tools embed for daily digest."""
+    return build_category_embed("tools", tools)
 
 
 def build_watching_embed(watching: list[dict[str, Any]]) -> discord.Embed:

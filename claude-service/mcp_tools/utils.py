@@ -84,6 +84,7 @@ def build_daily_digest_structure(
     headlines: list[dict[str, Any]],
     research: list[dict[str, Any]],
     industry: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
     watching: list[dict[str, Any]],
     excluded: list[dict[str, Any]],
     metadata: dict[str, Any],
@@ -96,6 +97,7 @@ def build_daily_digest_structure(
         headlines: List of headline items.
         research: List of research items.
         industry: List of industry items.
+        tools: List of AI dev tools items.
         watching: List of watching items.
         excluded: List of excluded items.
         metadata: Submission metadata.
@@ -109,6 +111,7 @@ def build_daily_digest_structure(
         len(headlines) +
         len(research or []) +
         len(industry or []) +
+        len(tools or []) +
         len(watching or [])
     )
     excluded_count = len(excluded or [])
@@ -118,11 +121,12 @@ def build_daily_digest_structure(
         "digest": {
             "date": today.isoformat(),
             "headline_count": len(headlines),
-            "categories": ["headlines", "research", "industry", "watching"],
+            "categories": ["headlines", "research", "industry", "tools", "watching"],
         },
         "headlines": headlines,
         "research": research or [],
         "industry": industry or [],
+        "tools": tools or [],
         "watching": watching or [],
         "excluded": excluded or [],
         "metadata": {
@@ -192,6 +196,7 @@ def collect_selected_items(
     headlines: list[dict[str, Any]],
     research: list[dict[str, Any]],
     industry: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
     watching: list[dict[str, Any]],
 ) -> list[tuple[dict[str, Any], str]]:
     """Collect all selected items with their section names.
@@ -200,6 +205,7 @@ def collect_selected_items(
         headlines: List of headline items.
         research: List of research items.
         industry: List of industry items.
+        tools: List of AI dev tools items.
         watching: List of watching items.
 
     Returns:
@@ -209,5 +215,6 @@ def collect_selected_items(
         *[(item, "headlines") for item in headlines],
         *[(item, "research") for item in (research or [])],
         *[(item, "industry") for item in (industry or [])],
+        *[(item, "tools") for item in (tools or [])],
         *[(item, "watching") for item in (watching or [])],
     ]

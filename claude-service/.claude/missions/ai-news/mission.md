@@ -23,6 +23,8 @@ Digest quotidien AI/ML pour audience technique internationale.
 | huggingface.co | HuggingFace |
 | arxiv.org, mit.edu, stanford.edu | Académique |
 | theverge.com/ai, arstechnica.com/ai | Tech press |
+| simonwillison.net | Expert LLM tooling |
+| techcrunch.com/ai | Tech press |
 
 ## Sources communautaires
 
@@ -39,6 +41,7 @@ Digest quotidien AI/ML pour audience technique internationale.
 | `headlines` | Breaking news, annonces majeures |
 | `research` | Papers, benchmarks |
 | `industry` | Business, levées de fonds |
+| `tools` | Outils AI dev (Claude Code, Cursor, MCP, SDK) |
 | `watching` | Tendances émergentes |
 
 ## Langue

@@ -29,6 +29,7 @@ class DigestSubmitter:
         headlines: list[dict[str, Any]],
         research: list[dict[str, Any]],
         industry: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         watching: list[dict[str, Any]],
         excluded: list[dict[str, Any]],
         metadata: dict[str, Any],
@@ -41,6 +42,7 @@ class DigestSubmitter:
             headlines: List of headline items (at least 1 required).
             research: List of research items.
             industry: List of industry items.
+            tools: List of AI dev tools items.
             watching: List of watching items.
             excluded: List of excluded items.
             metadata: Submission metadata.
@@ -50,7 +52,7 @@ class DigestSubmitter:
         """
         # Validate input
         errors = validate_daily_digest(
-            headlines, research, industry, watching, excluded, metadata
+            headlines, research, industry, tools, watching, excluded, metadata
         )
 
         if errors:
@@ -60,7 +62,7 @@ class DigestSubmitter:
                 "message": "Validation failed. Please fix the errors and resubmit.",
             }
         selected_count = DigestSubmitter._count_selected(
-            headlines, research, industry, watching
+            headlines, research, industry, tools, watching
         )
         excluded_count = len(excluded or [])
 
@@ -73,13 +75,13 @@ class DigestSubmitter:
         # Save to database
         db_result = DigestSubmitter._save_to_database(
             execution_id, mission_id, headlines, research,
-            industry, watching, excluded, metadata
+            industry, tools, watching, excluded, metadata
         )
 
         # Build digest structure (includes digest_id if saved)
         digest = build_daily_digest_structure(
             execution_id, headlines, research, industry,
-            watching, excluded, metadata, db_result["digest_id"]
+            tools, watching, excluded, metadata, db_result["digest_id"]
         )
 
         # Write to file
@@ -97,6 +99,7 @@ class DigestSubmitter:
         headlines: list[dict[str, Any]],
         research: list[dict[str, Any]],
         industry: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         watching: list[dict[str, Any]],
     ) -> int:
         """Count total selected items.
@@ -105,6 +108,7 @@ class DigestSubmitter:
             headlines: List of headline items.
             research: List of research items.
             industry: List of industry items.
+            tools: List of tools items.
             watching: List of watching items.
 
         Returns:
@@ -114,6 +118,7 @@ class DigestSubmitter:
             len(headlines) +
             len(research or []) +
             len(industry or []) +
+            len(tools or []) +
             len(watching or [])
         )
 
@@ -124,6 +129,7 @@ class DigestSubmitter:
         headlines: list[dict[str, Any]],
         research: list[dict[str, Any]],
         industry: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         watching: list[dict[str, Any]],
         excluded: list[dict[str, Any]],
         metadata: dict[str, Any],
@@ -136,6 +142,7 @@ class DigestSubmitter:
             headlines: List of headline items.
             research: List of research items.
             industry: List of industry items.
+            tools: List of tools items.
             watching: List of watching items.
             excluded: List of excluded items.
             metadata: Submission metadata.
@@ -161,7 +168,7 @@ class DigestSubmitter:
                 # Build digest structure for DB storage
                 digest_content = build_daily_digest_structure(
                     execution_id, headlines, research, industry,
-                    watching, excluded, metadata, None
+                    tools, watching, excluded, metadata, None
                 )
 
                 # Insert digest
@@ -172,7 +179,7 @@ class DigestSubmitter:
 
                 # Insert articles
                 selected_items = collect_selected_items(
-                    headlines, research, industry, watching
+                    headlines, research, industry, tools, watching
                 )
                 selected_saved, excluded_saved = DigestRepository.batch_insert_articles(
                     cur, mission_id, digest_id, selected_items, excluded or []

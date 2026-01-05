@@ -1,5 +1,5 @@
 {
-  "name": "Daily AI News - v3 (Enriched Sources)",
+  "name": "Daily AI News - v4 (11 sources)",
   "nodes": [
     {
       "parameters": {
@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate workflow execution ID and capture start time\nconst workflow_execution_id = `wf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\nconst started_at = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflow_execution_id,\n    started_at,\n    workflow_name: 'Daily AI News - v3'\n  }\n}];"
+        "jsCode": "// Generate workflow execution ID and capture start time\nconst workflow_execution_id = `wf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;\nconst started_at = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflow_execution_id,\n    started_at,\n    workflow_name: 'Daily AI News - v4'\n  }\n}];"
       },
       "id": "init-execution",
       "name": "Init Execution",
@@ -106,6 +106,17 @@
     },
     {
       "parameters": {
+        "url": "https://simonwillison.net/atom/everything/"
+      },
+      "id": "rss-simonwillison",
+      "name": "RSS Simon Willison",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [400, 840],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "method": "GET",
         "url": "https://hn.algolia.com/api/v1/search_by_date",
         "sendQuery": true,
@@ -137,7 +148,7 @@
       "name": "HTTP Hacker News",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [400, 840],
+      "position": [400, 1200],
       "onError": "continueRegularOutput"
     },
     {
@@ -148,7 +159,7 @@
       "name": "Transform HN",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [600, 840]
+      "position": [600, 1200]
     },
     {
       "parameters": {
@@ -180,7 +191,7 @@
       "name": "HTTP Reddit ML",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [400, 960],
+      "position": [400, 1320],
       "onError": "continueRegularOutput"
     },
     {
@@ -191,7 +202,7 @@
       "name": "Transform Reddit ML",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [600, 960]
+      "position": [600, 1320]
     },
     {
       "parameters": {
@@ -223,7 +234,7 @@
       "name": "HTTP Reddit LocalLLaMA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [400, 1080],
+      "position": [400, 1440],
       "onError": "continueRegularOutput"
     },
     {
@@ -234,12 +245,12 @@
       "name": "Transform Reddit LocalLLaMA",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [600, 1080]
+      "position": [600, 1440]
     },
     {
       "parameters": {
         "mode": "append",
-        "numberInputs": 10,
+        "numberInputs": 11,
         "options": {}
       },
       "id": "merge-articles",
@@ -250,7 +261,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Dedup and format articles for Claude Service\nconst articles = $input.all();\nconst seen = new Set();\nconst now = new Date();\nconst cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago\n\n// Source mapping for friendly names\nconst SOURCE_MAP = {\n  'techcrunch.com': 'TechCrunch',\n  'openai.com': 'OpenAI',\n  'blog.google': 'Google',\n  'huggingface.co': 'HuggingFace',\n  'arxiv.org': 'arXiv',\n  'rss.arxiv.org': 'arXiv',\n  'export.arxiv.org': 'arXiv',\n  'theverge.com': 'The Verge',\n  'arstechnica.com': 'Ars Technica',\n  'news.ycombinator.com': 'Hacker News',\n  'reddit.com': 'Reddit'\n};\n\nconst unique = [];\n\nfor (const item of articles) {\n  const data = item.json;\n\n  // Extract fields (handle RSS and API structure variations)\n  const url = data.link || data.guid || data.url || '';\n  const title = data.title || '';\n  const pubDate = data.pubDate || data.isoDate || data.date || data.created_at || '';\n  const description = data.description || data.summary || data.content || data.contentSnippet || '';\n  const source = data.source || extractSource(url);\n\n  // Dedup key: URL or normalized title\n  const dedupKey = url || normalizeTitle(title);\n\n  if (!dedupKey || seen.has(dedupKey)) continue;\n  seen.add(dedupKey);\n\n  // Filter articles older than 7 days\n  if (pubDate) {\n    const articleDate = new Date(pubDate);\n    if (articleDate < cutoff) continue;\n  }\n\n  unique.push({\n    json: {\n      title: cleanText(title),\n      url: url,\n      description: cleanText(description).substring(0, 500),\n      pub_date: pubDate,\n      source: source\n    }\n  });\n\n  if (unique.length >= 50) break; // Increased limit for more sources\n}\n\nconsole.log(`Dedup: ${articles.length} articles -> ${unique.length} unique`);\nreturn unique;\n\n// Helper functions\nfunction normalizeTitle(title) {\n  return title.toLowerCase().replace(/[^a-z0-9]/g, '');\n}\n\nfunction cleanText(text) {\n  return text.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractSource(url) {\n  if (!url || typeof url !== 'string') return 'unknown';\n  let hostname = '';\n  // Try URL constructor first\n  try {\n    hostname = new URL(url).hostname.replace(/^www\\./, '');\n  } catch (e) {\n    // Fallback to regex\n    const match = url.match(/https?:\\/\\/(?:www\\.)?([^/]+)/i);\n    if (match && match[1]) {\n      hostname = match[1].toLowerCase();\n    } else {\n      return 'unknown';\n    }\n  }\n  return SOURCE_MAP[hostname] || hostname;\n}"
+        "jsCode": "// Dedup and format articles for Claude Service\nconst articles = $input.all();\nconst seen = new Set();\nconst now = new Date();\nconst cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago\n\n// Source mapping for friendly names\nconst SOURCE_MAP = {\n  'techcrunch.com': 'TechCrunch',\n  'openai.com': 'OpenAI',\n  'blog.google': 'Google',\n  'huggingface.co': 'HuggingFace',\n  'arxiv.org': 'arXiv',\n  'rss.arxiv.org': 'arXiv',\n  'export.arxiv.org': 'arXiv',\n  'theverge.com': 'The Verge',\n  'arstechnica.com': 'Ars Technica',\n  'news.ycombinator.com': 'Hacker News',\n  'reddit.com': 'Reddit',\n  'simonwillison.net': 'Simon Willison'\n};\n\nconst unique = [];\n\nfor (const item of articles) {\n  const data = item.json;\n\n  // Extract fields (handle RSS and API structure variations)\n  const url = data.link || data.guid || data.url || '';\n  const title = data.title || '';\n  const pubDate = data.pubDate || data.isoDate || data.date || data.created_at || '';\n  const description = data.description || data.summary || data.content || data.contentSnippet || '';\n  const source = data.source || extractSource(url);\n\n  // Dedup key: URL or normalized title\n  const dedupKey = url || normalizeTitle(title);\n\n  if (!dedupKey || seen.has(dedupKey)) continue;\n  seen.add(dedupKey);\n\n  // Filter articles older than 7 days\n  if (pubDate) {\n    const articleDate = new Date(pubDate);\n    if (articleDate < cutoff) continue;\n  }\n\n  unique.push({\n    json: {\n      title: cleanText(title),\n      url: url,\n      description: cleanText(description).substring(0, 500),\n      pub_date: pubDate,\n      source: source\n    }\n  });\n\n  if (unique.length >= 50) break; // Increased limit for more sources\n}\n\nconsole.log(`Dedup: ${articles.length} articles -> ${unique.length} unique`);\nreturn unique;\n\n// Helper functions\nfunction normalizeTitle(title) {\n  return title.toLowerCase().replace(/[^a-z0-9]/g, '');\n}\n\nfunction cleanText(text) {\n  return text.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractSource(url) {\n  if (!url || typeof url !== 'string') return 'unknown';\n  let hostname = '';\n  // Try URL constructor first\n  try {\n    hostname = new URL(url).hostname.replace(/^www\\./, '');\n  } catch (e) {\n    // Fallback to regex\n    const match = url.match(/https?:\\/\\/(?:www\\.)?([^/]+)/i);\n    if (match && match[1]) {\n      hostname = match[1].toLowerCase();\n    } else {\n      return 'unknown';\n    }\n  }\n  return SOURCE_MAP[hostname] || hostname;\n}"
       },
       "id": "code-dedup",
       "name": "Dedup & Format",
@@ -296,7 +307,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format response for Discord Bot API - creates publish payload\nconst response = $input.first().json;\n\nif (!response.success) {\n  throw new Error(`Claude CLI failed: ${response.error}`);\n}\n\n// Get the structured digest (new format from MCP)\nconst digest = response.digest;\nif (!digest) {\n  throw new Error('No digest found in response - Claude did not call submit_digest');\n}\n\n// Get digest_id from response (saved by MCP submit_digest)\nconst digest_id = response.digest_id || 0;\nconst digest_date = digest.digest?.date || new Date().toISOString().split('T')[0];\n\n// Build the content object for the bot API\n// The bot will build the embeds from this structured content\nconst content = {\n  headlines: digest.headlines || [],\n  research: digest.research || [],\n  industry: digest.industry || [],\n  watching: digest.watching || [],\n  metadata: {\n    articles_analyzed: response.article_count || 0,\n    web_searches: digest.metadata?.web_searches || 0,\n    fact_checks: digest.metadata?.fact_checks || 0,\n    deep_dives: digest.metadata?.deep_dives || 0\n  }\n};\n\nconsole.log(`Sending digest ${digest_id} to Discord Bot API`);\n\nreturn [{\n  json: {\n    type: 'daily',\n    mission_id: 'ai-news',\n    digest_id: digest_id,\n    date: digest_date,\n    content: content\n  }\n}];"
+        "jsCode": "// Format response for Discord Bot API - creates publish payload\nconst response = $input.first().json;\n\nif (!response.success) {\n  throw new Error(`Claude CLI failed: ${response.error}`);\n}\n\n// Get the structured digest (new format from MCP)\nconst digest = response.digest;\nif (!digest) {\n  throw new Error('No digest found in response - Claude did not call submit_digest');\n}\n\n// Get digest_id from response (saved by MCP submit_digest)\nconst digest_id = response.digest_id || 0;\nconst digest_date = digest.digest?.date || new Date().toISOString().split('T')[0];\n\n// Build the content object for the bot API\n// The bot will build the embeds from this structured content\nconst content = {\n  headlines: digest.headlines || [],\n  research: digest.research || [],\n  industry: digest.industry || [],\n  tools: digest.tools || [],\n  watching: digest.watching || [],\n  metadata: {\n    articles_analyzed: response.article_count || 0,\n    web_searches: digest.metadata?.web_searches || 0,\n    fact_checks: digest.metadata?.fact_checks || 0,\n    deep_dives: digest.metadata?.deep_dives || 0\n  }\n};\n\nconsole.log(`Sending digest ${digest_id} to Discord Bot API`);\n\nreturn [{\n  json: {\n    type: 'daily',\n    mission_id: 'ai-news',\n    digest_id: digest_id,\n    date: digest_date,\n    content: content\n  }\n}];"
       },
       "id": "code-discord",
       "name": "Format Bot Payload",
@@ -332,7 +343,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\nconst botResponse = $('Publish via Bot').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID and digest info\nconst claude_execution_id = claudeResponse.execution_id || null;\nconst digest_id = claudeResponse.digest_id || null;\nconst digest = claudeResponse.digest || {};\nconst articles_saved = (digest.headlines?.length || 0) + (digest.research?.length || 0) + (digest.industry?.length || 0) + (digest.watching?.length || 0);\nconst db_saved = digest_id !== null;\n\n// Extract Discord publication info from bot response\nconst discord_message_id = botResponse.message_id || null;\nconst discord_channel_id = botResponse.channel_id || null;\nconst discord_sent = botResponse.posted_to_discord === true;\n\n// Build nodes_executed list (updated for v3 sources)\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS TechCrunch AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'RSS arXiv AI/ML', status: 'success', error: null },\n  { name: 'RSS The Verge AI', status: 'success', error: null },\n  { name: 'RSS Ars Technica AI', status: 'success', error: null },\n  { name: 'HTTP Hacker News', status: 'success', error: null },\n  { name: 'HTTP Reddit ML', status: 'success', error: null },\n  { name: 'HTTP Reddit LocalLLaMA', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Bot Payload', status: 'success', error: null },\n  { name: 'Publish via Bot', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: discord_sent,\n    discord_message_id: discord_message_id,\n    discord_channel_id: discord_channel_id,\n    digest_id: digest_id,\n    db_saved: db_saved,\n    articles_saved: articles_saved\n  }\n}];"
+        "jsCode": "// Prepare success log data for /log-workflow endpoint\nconst initData = $('Init Execution').first().json;\nconst payloadData = $('Prepare Payload').first().json;\nconst claudeResponse = $('Call Claude Service').first().json;\nconst botResponse = $('Publish via Bot').first().json;\n\nconst finished_at = new Date().toISOString();\n\n// Calculate articles count from payload\nconst articles_count = payloadData.articles ? payloadData.articles.length : 0;\n\n// Extract claude execution ID and digest info\nconst claude_execution_id = claudeResponse.execution_id || null;\nconst digest_id = claudeResponse.digest_id || null;\nconst digest = claudeResponse.digest || {};\nconst articles_saved = (digest.headlines?.length || 0) + (digest.research?.length || 0) + (digest.industry?.length || 0) + (digest.watching?.length || 0);\nconst db_saved = digest_id !== null;\n\n// Extract Discord publication info from bot response\nconst discord_message_id = botResponse.message_id || null;\nconst discord_channel_id = botResponse.channel_id || null;\nconst discord_sent = botResponse.posted_to_discord === true;\n\n// Build nodes_executed list (11 sources)\nconst nodes_executed = [\n  { name: 'Init Execution', status: 'success', error: null },\n  { name: 'RSS TechCrunch AI', status: 'success', error: null },\n  { name: 'RSS OpenAI', status: 'success', error: null },\n  { name: 'RSS Google AI', status: 'success', error: null },\n  { name: 'RSS HuggingFace', status: 'success', error: null },\n  { name: 'RSS arXiv AI/ML', status: 'success', error: null },\n  { name: 'RSS The Verge AI', status: 'success', error: null },\n  { name: 'RSS Ars Technica AI', status: 'success', error: null },\n  { name: 'RSS Simon Willison', status: 'success', error: null },\n  { name: 'HTTP Hacker News', status: 'success', error: null },\n  { name: 'HTTP Reddit ML', status: 'success', error: null },\n  { name: 'HTTP Reddit LocalLLaMA', status: 'success', error: null },\n  { name: 'Merge Articles', status: 'success', error: null },\n  { name: 'Dedup & Format', status: 'success', error: null },\n  { name: 'Prepare Payload', status: 'success', error: null },\n  { name: 'Call Claude Service', status: 'success', error: null },\n  { name: 'Format Bot Payload', status: 'success', error: null },\n  { name: 'Publish via Bot', status: 'success', error: null }\n];\n\nreturn [{\n  json: {\n    workflow_execution_id: initData.workflow_execution_id,\n    workflow_name: initData.workflow_name,\n    started_at: initData.started_at,\n    finished_at: finished_at,\n    status: 'success',\n    error_message: null,\n    error_node: null,\n    nodes_executed: nodes_executed,\n    articles_count: articles_count,\n    claude_execution_id: claude_execution_id,\n    discord_sent: discord_sent,\n    discord_message_id: discord_message_id,\n    discord_channel_id: discord_channel_id,\n    digest_id: digest_id,\n    db_saved: db_saved,\n    articles_saved: articles_saved\n  }\n}];"
       },
       "id": "code-success-log",
       "name": "Prepare Success Log",
@@ -429,6 +440,7 @@
           { "node": "RSS arXiv AI/ML", "type": "main", "index": 0 },
           { "node": "RSS The Verge AI", "type": "main", "index": 0 },
           { "node": "RSS Ars Technica AI", "type": "main", "index": 0 },
+          { "node": "RSS Simon Willison", "type": "main", "index": 0 },
           { "node": "HTTP Hacker News", "type": "main", "index": 0 },
           { "node": "HTTP Reddit ML", "type": "main", "index": 0 },
           { "node": "HTTP Reddit LocalLLaMA", "type": "main", "index": 0 }
@@ -484,6 +496,13 @@
         ]
       ]
     },
+    "RSS Simon Willison": {
+      "main": [
+        [
+          { "node": "Merge Articles", "type": "main", "index": 7 }
+        ]
+      ]
+    },
     "HTTP Hacker News": {
       "main": [
         [
@@ -494,7 +513,7 @@
     "Transform HN": {
       "main": [
         [
-          { "node": "Merge Articles", "type": "main", "index": 7 }
+          { "node": "Merge Articles", "type": "main", "index": 8 }
         ]
       ]
     },
@@ -508,7 +527,7 @@
     "Transform Reddit ML": {
       "main": [
         [
-          { "node": "Merge Articles", "type": "main", "index": 8 }
+          { "node": "Merge Articles", "type": "main", "index": 9 }
         ]
       ]
     },
@@ -522,7 +541,7 @@
     "Transform Reddit LocalLLaMA": {
       "main": [
         [
-          { "node": "Merge Articles", "type": "main", "index": 9 }
+          { "node": "Merge Articles", "type": "main", "index": 10 }
         ]
       ]
     },

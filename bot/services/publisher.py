@@ -20,6 +20,7 @@ from services.embed_builder import (
     build_industry_embed,
     build_research_embed,
     build_summary_embed,
+    build_tools_embed,
     build_top_stories_embed,
     build_trends_embed,
     build_watching_embed,
@@ -66,6 +67,7 @@ def build_daily_embeds(content: dict[str, Any]) -> list[discord.Embed]:
         ("headlines", build_headlines_embed),
         ("research", build_research_embed),
         ("industry", build_industry_embed),
+        ("tools", build_tools_embed),
         ("watching", build_watching_embed),
     ]:
         items = content.get(category, [])
