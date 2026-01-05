@@ -190,6 +190,67 @@ async def _mark_posted(config: DigestConfig) -> None:
         logger.warning("Failed to mark digest %d as posted: %s", config.digest_id, e)
 
 
+def _calculate_embed_size(embed: discord.Embed) -> int:
+    """Calculate the total character count of an embed.
+
+    Discord counts: title + description + field names + field values + footer + author name
+    """
+    size = 0
+    if embed.title:
+        size += len(embed.title)
+    if embed.description:
+        size += len(embed.description)
+    for field in embed.fields:
+        size += len(field.name) + len(field.value)
+    if embed.footer and embed.footer.text:
+        size += len(embed.footer.text)
+    if embed.author and embed.author.name:
+        size += len(embed.author.name)
+    return size
+
+
+def _batch_embeds(embeds: list[discord.Embed], max_size: int = 5900) -> list[list[discord.Embed]]:
+    """Split embeds into batches that fit within Discord's size limit.
+
+    Discord allows max 6000 chars total across all embeds in one message.
+    We use 5900 as buffer for safety.
+
+    Args:
+        embeds: List of embeds to batch
+        max_size: Maximum total size per batch
+
+    Returns:
+        List of embed batches
+    """
+    batches = []
+    current_batch = []
+    current_size = 0
+
+    for embed in embeds:
+        embed_size = _calculate_embed_size(embed)
+
+        # If single embed exceeds limit, truncate its fields
+        if embed_size > max_size:
+            # Truncate fields to fit
+            while embed_size > max_size and embed.fields:
+                embed.remove_field(len(embed.fields) - 1)
+                embed_size = _calculate_embed_size(embed)
+
+        # Check if adding this embed would exceed the limit
+        if current_size + embed_size > max_size and current_batch:
+            batches.append(current_batch)
+            current_batch = []
+            current_size = 0
+
+        current_batch.append(embed)
+        current_size += embed_size
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
+
 async def publish_digest(bot: discord.Client, config: DigestConfig) -> dict[str, Any]:
     """Publish a digest to Discord.
 
@@ -215,7 +276,12 @@ async def publish_digest(bot: discord.Client, config: DigestConfig) -> dict[str,
     else:
         embeds = build_weekly_embeds(config.content)
 
-    message = await channel.send(embeds=embeds[:10])
+    # Batch embeds to respect Discord's 6000 char limit per message
+    batches = _batch_embeds(embeds)
+    message = None
+
+    for batch in batches:
+        message = await channel.send(embeds=batch)
 
     # Update database
     await _mark_posted(config)
