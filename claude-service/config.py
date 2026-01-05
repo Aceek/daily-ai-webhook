@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     # Path settings
     logs_path: str = "/app/logs"
-    missions_path: str = "/app/missions"
+    missions_path: str = "/app/.claude/missions"
     data_path: str = "/app/data"
     digests_path: str = "/app/logs/digests"
 

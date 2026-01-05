@@ -62,14 +62,10 @@ services:
       - CLAUDE_LOG_LEVEL=${CLAUDE_LOG_LEVEL:-info}
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-ainews}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ainews}
     volumes:
-      # Named volume for Claude CLI runtime data (statsig, todos, projects, etc.)
-      - claude-runtime:/root/.claude
-      # Config files (copied to /root/.claude by entrypoint)
-      - ./claude-service/config:/app/config:ro
+      # Centralized Claude config (.claude/ contains CLAUDE.md, missions/, agents/, etc.)
+      - ./claude-service/.claude:/app/.claude:ro
       # MCP server code (named mcp_tools to avoid conflict with mcp package)
       - ./claude-service/mcp_tools:/app/mcp_tools:ro
-      # Missions configuration
-      - ./claude-service/missions:/app/missions:ro
       # Data interchange (articles.json)
       - ./data:/app/data
       # Execution logs
@@ -107,5 +103,3 @@ services:
 volumes:
   postgres-data:
     name: ai-news-postgres-data
-  claude-runtime:
-    name: ai-news-claude-runtime

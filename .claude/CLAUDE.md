@@ -64,8 +64,7 @@ Ne jamais commit: `.env`, `n8n-data/`, `logs/`, `*.credentials.json`
 | Contexte | Chemin | Usage |
 |----------|--------|-------|
 | Dev local | `.claude/` | Cette doc |
-| Production | `claude-service/config/CLAUDE.md` | Agent instructions |
-| Missions | `claude-service/missions/` | Mission definitions |
+| Agent | `claude-service/.claude/` | Config agent (CLAUDE.md, missions/, agents/) |
 
 ## Documentation détaillée
 

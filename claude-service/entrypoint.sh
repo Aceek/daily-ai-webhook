@@ -5,54 +5,28 @@ set -e
 # 002 = files: rw-rw-r--, dirs: rwxrwxr-x
 umask 002
 
-# Copy our config files to Claude CLI home directory
-# Source: /app/config/ (mounted read-only from host)
-# Destination: /root/.claude/ (named volume for runtime)
-copy_config() {
-    local src="/app/config"
-    local dest="/root/.claude"
+# Setup Claude CLI config
+# .claude/ is now mounted directly from host to /app/.claude/
+# We need to symlink it to /root/.claude for Claude CLI to find it
+setup_claude_config() {
+    echo "[entrypoint] Setting up Claude CLI config..."
 
-    echo "[entrypoint] Copying config files to $dest..."
-
-    # Create destination if not exists
-    mkdir -p "$dest"
-
-    # Copy CLAUDE.md (main instructions)
-    if [ -f "$src/CLAUDE.md" ]; then
-        cp "$src/CLAUDE.md" "$dest/CLAUDE.md"
-        echo "  - CLAUDE.md"
+    # Create symlink from /root/.claude to /app/.claude
+    if [ -d "/app/.claude" ]; then
+        # Remove existing /root/.claude if it exists
+        rm -rf /root/.claude
+        ln -sf /app/.claude /root/.claude
+        echo "  - Symlinked /app/.claude -> /root/.claude"
     fi
 
-    # Copy credentials
-    if [ -f "$src/.credentials.json" ]; then
-        cp "$src/.credentials.json" "$dest/.credentials.json"
-        echo "  - .credentials.json"
+    # Copy .mcp.json to locations where Claude CLI looks for it
+    if [ -f "/app/.claude/.mcp.json" ]; then
+        cp /app/.claude/.mcp.json /root/.mcp.json
+        cp /app/.claude/.mcp.json /app/.mcp.json
+        echo "  - Copied .mcp.json to /root/ and /app/"
     fi
 
-    # Copy agents directory
-    if [ -d "$src/agents" ]; then
-        mkdir -p "$dest/agents"
-        cp -r "$src/agents/"* "$dest/agents/" 2>/dev/null || true
-        echo "  - agents/"
-    fi
-
-    # Copy docs directory
-    if [ -d "$src/docs" ]; then
-        mkdir -p "$dest/docs"
-        cp -r "$src/docs/"* "$dest/docs/" 2>/dev/null || true
-        echo "  - docs/"
-    fi
-
-    # Copy MCP config to both /root (home) and /app (workdir) for Claude CLI to find it
-    # Note: We use a wrapper script (/usr/local/bin/mcp-run-server) that inherits parent env,
-    # avoiding Claude Code bug #1254 where env vars aren't passed to MCP subprocesses
-    if [ -f "$src/.mcp.json" ]; then
-        cp "$src/.mcp.json" "/root/.mcp.json"
-        cp "$src/.mcp.json" "/app/.mcp.json"
-        echo "  - .mcp.json -> /root/.mcp.json + /app/.mcp.json"
-    fi
-
-    echo "[entrypoint] Config copy complete."
+    echo "[entrypoint] Config setup complete."
 }
 
 # Fix permissions on directories
@@ -64,17 +38,14 @@ fix_permissions() {
     fi
 }
 
-# Copy config files from mounted read-only source to Claude home
-copy_config
+# Setup config
+setup_claude_config
 
 # Fix permissions on runtime directories
-echo "[entrypoint] Fixing permissions on /root/.claude..."
-fix_permissions "/root/.claude"
-
 echo "[entrypoint] Fixing permissions on /app/logs..."
 fix_permissions "/app/logs"
 
-# Ensure logs directory exists (subdirectories created dynamically per execution)
+# Ensure logs directory exists
 mkdir -p /app/logs
 echo "[entrypoint] Ensured /app/logs exists"
 

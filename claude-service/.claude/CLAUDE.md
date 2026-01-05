@@ -27,12 +27,12 @@ Lis les paramètres fournis pour déterminer le type:
 **AVANT TOUTE ANALYSE**, tu DOIS lire ces fichiers DANS L'ORDRE.
 
 1. `Read("/app/data/articles.json")` - Données à traiter
-2. `Read("/app/missions/_common/quality-rules.md")` - Règles qualité
-3. `Read("/app/missions/_common/mcp-usage.md")` - Instructions MCP
-4. `Read("/app/missions/{mission}/mission.md")` - Description mission
-5. `Read("/app/missions/{mission}/selection-rules.md")` - Règles de sélection
-6. `Read("/app/missions/{mission}/editorial-guide.md")` - Guide éditorial
-7. `Read("/app/missions/{mission}/output-schema.md")` - Format de sortie
+2. `Read("/app/.claude/missions/_common/quality-rules.md")` - Règles qualité
+3. `Read("/app/.claude/missions/_common/mcp-usage.md")` - Instructions MCP
+4. `Read("/app/.claude/missions/{mission}/mission.md")` - Description mission
+5. `Read("/app/.claude/missions/{mission}/selection-rules.md")` - Règles de sélection
+6. `Read("/app/.claude/missions/{mission}/editorial-guide.md")` - Guide éditorial
+7. `Read("/app/.claude/missions/{mission}/output-schema.md")` - Format de sortie
 
 ### Étape 1.5 : Récupération des catégories existantes (OBLIGATOIRE)
 
@@ -140,10 +140,10 @@ submit_digest(
 
 ### Étape 1 : Chargement des fichiers mission WEEKLY (BLOQUANT)
 
-1. `Read("/app/missions/_common/mcp-usage.md")` - Instructions MCP
-2. `Read("/app/missions/{mission}/weekly/mission.md")` - Mission weekly
-3. `Read("/app/missions/{mission}/weekly/analysis-rules.md")` - Règles d'analyse
-4. `Read("/app/missions/{mission}/weekly/output-schema.md")` - Format de sortie
+1. `Read("/app/.claude/missions/_common/mcp-usage.md")` - Instructions MCP
+2. `Read("/app/.claude/missions/{mission}/weekly/mission.md")` - Mission weekly
+3. `Read("/app/.claude/missions/{mission}/weekly/analysis-rules.md")` - Règles d'analyse
+4. `Read("/app/.claude/missions/{mission}/weekly/output-schema.md")` - Format de sortie
 
 ### Étape 2 : Récupération des données via MCP DB Tools
 
@@ -244,12 +244,12 @@ Paramètres reçus:
 Je suis le protocole DAILY...
 
 1. Read("/app/data/articles.json") ✓
-2. Read("/app/missions/_common/quality-rules.md") ✓
-3. Read("/app/missions/_common/mcp-usage.md") ✓
-4. Read("/app/missions/ai-news/mission.md") ✓
-5. Read("/app/missions/ai-news/selection-rules.md") ✓
-6. Read("/app/missions/ai-news/editorial-guide.md") ✓
-7. Read("/app/missions/ai-news/output-schema.md") ✓
+2. Read("/app/.claude/missions/_common/quality-rules.md") ✓
+3. Read("/app/.claude/missions/_common/mcp-usage.md") ✓
+4. Read("/app/.claude/missions/ai-news/mission.md") ✓
+5. Read("/app/.claude/missions/ai-news/selection-rules.md") ✓
+6. Read("/app/.claude/missions/ai-news/editorial-guide.md") ✓
+7. Read("/app/.claude/missions/ai-news/output-schema.md") ✓
 
 Fichiers chargés. Je récupère le contexte avant analyse...
 
@@ -280,10 +280,10 @@ Paramètres reçus:
 
 Je suis le protocole WEEKLY...
 
-1. Read("/app/missions/_common/mcp-usage.md") ✓
-2. Read("/app/missions/ai-news/weekly/mission.md") ✓
-3. Read("/app/missions/ai-news/weekly/analysis-rules.md") ✓
-4. Read("/app/missions/ai-news/weekly/output-schema.md") ✓
+1. Read("/app/.claude/missions/_common/mcp-usage.md") ✓
+2. Read("/app/.claude/missions/ai-news/weekly/mission.md") ✓
+3. Read("/app/.claude/missions/ai-news/weekly/analysis-rules.md") ✓
+4. Read("/app/.claude/missions/ai-news/weekly/output-schema.md") ✓
 
 Fichiers chargés. Je récupère les données via MCP...
 

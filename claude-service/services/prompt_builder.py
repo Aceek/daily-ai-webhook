@@ -113,10 +113,10 @@ def _build_weekly_instructions(
 This is a WEEKLY DIGEST analysis. You must:
 
 1. Read the weekly mission files:
-   - /app/missions/{mission}/weekly/mission.md
-   - /app/missions/{mission}/weekly/analysis-rules.md
-   - /app/missions/{mission}/weekly/output-schema.md
-   - /app/missions/_common/mcp-usage.md
+   - /app/.claude/missions/{mission}/weekly/mission.md
+   - /app/.claude/missions/{mission}/weekly/analysis-rules.md
+   - /app/.claude/missions/{mission}/weekly/output-schema.md
+   - /app/.claude/missions/_common/mcp-usage.md
 
 2. Use MCP database tools to fetch data:
    - get_article_stats(mission_id="{mission}", date_from="{week_start}", date_to="{week_end}")

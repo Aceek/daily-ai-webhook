@@ -226,7 +226,7 @@ class TestSettings:
             assert settings.claude_timeout == 600
             assert settings.retry_count == 1
             assert settings.logs_path == "/app/logs"
-            assert settings.missions_path == "/app/missions"
+            assert settings.missions_path == "/app/.claude/missions"
             assert settings.data_path == "/app/data"
             assert settings.digests_path == "/app/logs/digests"
             assert settings.log_level == "info"
