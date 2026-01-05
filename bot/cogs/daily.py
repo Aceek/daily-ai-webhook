@@ -83,17 +83,33 @@ class DailyCog(commands.Cog):
                 card_bytes = await generate_daily_card_async(content, digest_date)
                 card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-daily.png")
                 await interaction.followup.send(file=card_file)
+            except discord.HTTPException as e:
+                logger.error(f"Discord API error while sending card: {e}")
+            except ValueError as e:
+                logger.warning(f"Value error generating card: {e}")
             except Exception as e:
-                logger.warning("Failed to generate card image: %s", e)
+                logger.exception(f"Unexpected error generating card: {e}")
 
             # Send detailed embeds
             embeds = build_daily_embeds(content, digest_date)
             await interaction.followup.send(embeds=embeds[:10])
 
-        except Exception as e:
-            logger.error("Error fetching daily digest: %s", e)
+        except discord.HTTPException as e:
+            logger.error(f"Discord API error: {e}")
             await interaction.followup.send(
-                "An error occurred while fetching the digest.",
+                f"Discord error: {e.text}",
+                ephemeral=True,
+            )
+        except ValueError as e:
+            logger.error(f"Value error: {e}")
+            await interaction.followup.send(
+                f"Invalid input: {e}",
+                ephemeral=True,
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error fetching daily digest: {e}")
+            await interaction.followup.send(
+                "An unexpected error occurred while fetching the digest.",
                 ephemeral=True,
             )
 

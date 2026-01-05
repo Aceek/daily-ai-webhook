@@ -88,17 +88,33 @@ class WeeklyCog(commands.Cog):
                 card_bytes = await generate_weekly_card_async(content, week_start, week_end)
                 card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-weekly.png")
                 await interaction.followup.send(file=card_file)
+            except discord.HTTPException as e:
+                logger.error(f"Discord API error while sending card: {e}")
+            except ValueError as e:
+                logger.warning(f"Value error generating card: {e}")
             except Exception as e:
-                logger.warning("Failed to generate weekly card image: %s", e)
+                logger.exception(f"Unexpected error generating weekly card: {e}")
 
             # Send detailed embeds
             embeds = build_weekly_embeds(content, week_start, week_end)
             await interaction.followup.send(embeds=embeds[:10])
 
-        except Exception as e:
-            logger.error("Error fetching weekly digest: %s", e)
+        except discord.HTTPException as e:
+            logger.error(f"Discord API error: {e}")
             await interaction.followup.send(
-                "An error occurred while fetching the weekly digest.",
+                f"Discord error: {e.text}",
+                ephemeral=True,
+            )
+        except ValueError as e:
+            logger.error(f"Value error: {e}")
+            await interaction.followup.send(
+                f"Invalid input: {e}",
+                ephemeral=True,
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error fetching weekly digest: {e}")
+            await interaction.followup.send(
+                "An unexpected error occurred while fetching the weekly digest.",
                 ephemeral=True,
             )
 
@@ -183,8 +199,12 @@ class WeeklyCog(commands.Cog):
                 )
                 card_file = discord.File(io.BytesIO(card_bytes), filename="ai-news-weekly.png")
                 await interaction.followup.send(file=card_file)
+            except discord.HTTPException as e:
+                logger.error(f"Discord API error while sending card: {e}")
+            except ValueError as e:
+                logger.warning(f"Value error generating card: {e}")
             except Exception as e:
-                logger.warning("Failed to generate weekly card image: %s", e)
+                logger.exception(f"Unexpected error generating weekly card: {e}")
 
             # Send detailed embeds
             embeds = build_weekly_embeds(content, week_start, week_end)
@@ -211,15 +231,30 @@ class WeeklyCog(commands.Cog):
                 result.get("digest_id"),
             )
 
+        except discord.HTTPException as e:
+            logger.error(f"Discord API error: {e}")
+            cmd_log.finish(success=False, error=f"Discord API error: {e}")
+            await send_command_log(cmd_log)
+            try:
+                await status_msg.edit(content=f"Discord error: {e.text}")
+            except discord.HTTPException:
+                pass  # If status message edit fails, silently ignore
         except ClaudeServiceError as e:
-            logger.error("Claude service error: %s", e)
+            logger.error(f"Claude service error: {e}")
             cmd_log.finish(success=False, error=str(e))
             await send_command_log(cmd_log)
             await status_msg.edit(
                 content=f"Failed to generate digest: {e}\nPlease try again later."
             )
+        except ValueError as e:
+            logger.error(f"Value error: {e}")
+            cmd_log.finish(success=False, error=str(e))
+            await send_command_log(cmd_log)
+            await status_msg.edit(
+                content=f"Invalid input: {e}"
+            )
         except Exception as e:
-            logger.error("Unexpected error generating weekly digest: %s", e, exc_info=True)
+            logger.exception(f"Unexpected error generating weekly digest: {e}")
             cmd_log.finish(success=False, error=str(e))
             await send_command_log(cmd_log)
             await status_msg.edit(

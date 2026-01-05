@@ -6,6 +6,8 @@ Handles validation, database save, and file output for daily digests.
 from datetime import date
 from typing import Any
 
+import psycopg2
+
 from ..logger import logger
 from ..repositories.base import get_db_connection
 from ..repositories.digest import DigestRepository
@@ -195,7 +197,7 @@ class DigestSubmitter:
                     "articles_saved": selected_saved + excluded_saved,
                 }
 
-        except Exception as e:
+        except (psycopg2.Error, psycopg2.DatabaseError, ValueError, TypeError) as e:
             conn.rollback()
             logger.operation("db_save", "error", str(e))
             logger.error(f"Database save failed: {e}")

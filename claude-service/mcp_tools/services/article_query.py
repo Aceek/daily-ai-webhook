@@ -5,6 +5,8 @@ Handles all read operations for articles, categories, and stats.
 
 from typing import Any
 
+import psycopg2
+
 from ..logger import logger
 from ..repositories.base import get_db_connection
 from ..repositories.article import ArticleRepository
@@ -49,7 +51,7 @@ class ArticleQueryService:
                     "categories": categories,
                     "count": len(categories),
                 }
-        except Exception as e:
+        except (psycopg2.Error, ValueError) as e:
             logger.error(f"get_categories failed: {e}")
             return {"status": "error", "message": str(e)}
         finally:
@@ -98,7 +100,7 @@ class ArticleQueryService:
                         "date_to": date_to,
                     },
                 }
-        except Exception as e:
+        except (psycopg2.Error, ValueError) as e:
             logger.error(f"get_articles failed: {e}")
             return {"status": "error", "message": str(e)}
         finally:
@@ -138,7 +140,7 @@ class ArticleQueryService:
                     "date_range": {"from": date_from, "to": date_to},
                     **stats,
                 }
-        except Exception as e:
+        except (psycopg2.Error, ValueError) as e:
             logger.error(f"get_article_stats failed: {e}")
             return {"status": "error", "message": str(e)}
         finally:
@@ -179,7 +181,7 @@ class ArticleQueryService:
                     "headlines": headlines,
                     "count": len(headlines),
                 }
-        except Exception as e:
+        except (psycopg2.Error, ValueError) as e:
             logger.error(f"get_recent_headlines failed: {e}")
             return {"status": "error", "message": str(e)}
         finally:
