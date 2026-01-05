@@ -332,7 +332,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
         "options": {
-          "timeout": 30000
+          "timeout": 120000
         }
       },
       "id": "http-discord",
