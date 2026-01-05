@@ -6,7 +6,7 @@ Veille AI/ML automatisée : n8n → Claude → PostgreSQL → Discord
 
 | Service | Tech | Port |
 |---------|------|------|
-| Database | PostgreSQL 16 | 5433 |
+| Database | PostgreSQL 16 | 5432 |
 | Orchestration | n8n | 5678 |
 | Intelligence | FastAPI + Claude CLI + MCP | 8080 |
 | Bot | discord.py + FastAPI | 8000 |
@@ -15,16 +15,16 @@ Veille AI/ML automatisée : n8n → Claude → PostgreSQL → Discord
 
 | Action | Commande |
 |--------|----------|
-| Dev | `docker-compose up -d` |
-| Logs | `docker-compose logs -f claude-service` |
-| Rebuild | `docker-compose up -d --build claude-service` |
-| DB shell | `docker exec -it postgres psql -U ainews` |
+| Dev | `docker compose up -d` |
+| Logs | `docker compose logs -f claude-service` |
+| Rebuild | `docker compose up -d --build claude-service` |
+| DB shell | `docker exec -it ai-news-postgres psql -U ainews` |
 
 ## Flux
 
 ```
 n8n cron 8h → RSS (7 feeds) → POST /summarize
-  → Claude CLI agentic (MCP tools + WebSearch)
+  → Claude CLI agentic (MCP tools)
   → submit_digest → PostgreSQL
   → POST /publish → Discord embeds
 ```
@@ -64,16 +64,10 @@ Ne jamais commit: `.env`, `n8n-data/`, `logs/`, `*.credentials.json`
 | Contexte | Chemin | Usage |
 |----------|--------|-------|
 | Dev local | `.claude/` | Cette doc |
-| Agent | `claude-service/.claude/` | Config agent (CLAUDE.md, missions/, agents/) |
+| Agent | `claude-service/.claude/` | Config agent (CLAUDE.md, missions/) |
 
 ## Documentation détaillée
 
 - [Architecture](docs/ARCHITECTURE.md) - Structure, flux, composants
 - [API](docs/API.md) - Endpoints, MCP tools, schemas
 - [Database](docs/DATABASE.md) - Schema, migrations, queries
-
-## Refactoring (2026-01)
-
-- [Post-Refactoring Review](analysis/POST-REFACTORING-REVIEW.md) - État actuel après refactoring
-- [Action Items](analysis/ACTION-ITEMS.md) - Améliorations restantes
-- [Plans d'exécution](../../docs/plans/) - Phases 0-4 + cleanup

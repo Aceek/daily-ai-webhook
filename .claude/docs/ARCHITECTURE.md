@@ -34,13 +34,13 @@ daily-ai-webhook/
 │   │   ├── validators.py
 │   │   ├── repositories/    # DB queries
 │   │   └── services/        # Business logic
-│   ├── config/
-│   │   ├── CLAUDE.md        # Agent instructions
-│   │   ├── .mcp.json        # MCP config
-│   │   └── agents/          # Sub-agents
-│   └── missions/
-│       ├── _common/         # Shared rules
-│       └── ai-news/         # Mission config
+│   └── .claude/             # Agent config (read-only mount)
+│       ├── CLAUDE.md        # Agent instructions
+│       ├── .mcp.json        # MCP config
+│       ├── .credentials.json
+│       └── missions/
+│           ├── _common/     # Shared rules
+│           └── ai-news/     # Mission config
 ├── bot/                     # Discord bot
 │   ├── main.py              # AINewsBot class
 │   ├── api.py               # /publish, /health
@@ -52,9 +52,9 @@ daily-ai-webhook/
 │   ├── services/
 │   │   ├── publisher.py     # Digest → Discord
 │   │   ├── embed_builder.py # Embed construction
-│   │   ├── card_generator.py    # HTML → PNG
+│   │   ├── card_generator.py
 │   │   ├── image_renderer.py
-│   │   ├── claude_client.py     # /analyze-weekly client
+│   │   ├── claude_client.py # /analyze-weekly client
 │   │   └── repositories/
 │   └── templates/           # HTML cards
 ├── data/                    # articles.json (runtime)
@@ -69,10 +69,9 @@ daily-ai-webhook/
 3. POST /summarize {mission, articles}
 4. claude-service:
    - write articles.json
-   - claude CLI --allowedTools [MCP + WebSearch]
+   - claude CLI --allowedTools [MCP tools]
    - Claude: reads mission files
    - Claude: get_categories(), get_recent_headlines()
-   - Claude: WebSearch (3-5)
    - Claude: submit_digest() → DB insert
 5. Response {success, digest_id, digest}
 6. n8n: POST /publish {digest_id, content}
@@ -111,8 +110,8 @@ logs/
 │   └── HHMMSS_executionid/
 │       ├── SUMMARY.md       # Status, pipeline
 │       ├── digest.json      # Structured output
-│       ├── research.md      # Claude research
 │       ├── workflow.md      # n8n log
+│       ├── mcp.log          # MCP operations
 │       └── raw/timeline.json
 └── latest → symlink
 ```
@@ -131,11 +130,11 @@ logs/
 
 ```bash
 # 1. Créer mission files
-mkdir -p claude-service/missions/{mission_id}
-# mission.md, selection-rules.md, editorial-guide.md, output-schema.md
+mkdir -p claude-service/.claude/missions/{mission_id}
+# mission.md, selection-rules.md, output-schema.md
 
-# 2. Ajouter à config.py
-VALID_MISSIONS = ["ai-news", "{mission_id}"]
+# 2. Ajouter weekly/ si besoin
+mkdir -p claude-service/.claude/missions/{mission_id}/weekly
 
 # 3. POST /summarize avec mission={mission_id}
 ```

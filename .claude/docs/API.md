@@ -146,8 +146,8 @@ Publish digest to Discord.
       "url": "https://...",
       "source": "TechCrunch",
       "summary": "2-3 phrases",
-      "confidence": "high|medium|low",
-      "importance": "breaking|significant|notable",
+      "confidence": "high|medium",
+      "importance": "breaking|major|standard",
       "category": "Models"
     }
   ],
@@ -163,9 +163,8 @@ Publish digest to Discord.
     }
   ],
   "metadata": {
-    "web_searches": 4,
-    "fact_checks": 1,
-    "exclusion_breakdown": {...}
+    "articles_analyzed": 50,
+    "mission_id": "ai-news"
   }
 }
 ```
@@ -180,15 +179,18 @@ Publish digest to Discord.
   "week_end": "2024-12-22",
   "summary": "Paragraphe synthèse",
   "trends": [
-    {"rank": 1, "title": "...", "description": "...", "evidence": [...]}
+    {"name": "...", "description": "...", "evidence": [...], "direction": "rising|stable|declining"}
   ],
   "top_stories": [
-    {"rank": 1, "title": "...", "url": "...", "impact": "..."}
+    {"title": "...", "summary": "...", "url": "...", "impact": "...", "emoji": "🚀"}
   ],
   "category_analysis": {
-    "Models": {"article_count": 5, "highlights": [...]}
+    "headlines": {"count": 5, "summary": "..."}
   },
-  "metadata": {...},
+  "metadata": {
+    "articles_analyzed": 150,
+    "theme": null
+  },
   "is_standard": true
 }
 ```
