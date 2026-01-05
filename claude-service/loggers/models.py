@@ -7,6 +7,7 @@ Pydantic models for execution and workflow logging.
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -107,3 +108,76 @@ class ExecutionLog(BaseModel):
     claude_response: str = ""
     timeline: list[StreamEvent] = Field(default_factory=list)
     metrics: ExecutionMetrics = Field(default_factory=ExecutionMetrics)
+
+
+def create_execution_log(
+    articles: list[Any],
+    prompt: str,
+    response: str,
+    duration: float,
+    success: bool,
+    error: str | None = None,
+    timeline: list[StreamEvent] | None = None,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    cost_usd: float = 0.0,
+    workflow_execution_id: str | None = None,
+    execution_id: str | None = None,
+    mission: str = "ai-news",
+) -> ExecutionLog:
+    """Factory function to create an ExecutionLog from raw data.
+
+    Args:
+        articles: List of articles processed.
+        prompt: Prompt sent to Claude.
+        response: Response from Claude.
+        duration: Execution duration in seconds.
+        success: Whether execution succeeded.
+        error: Error message if failed.
+        timeline: Stream events timeline.
+        input_tokens: Input token count.
+        output_tokens: Output token count.
+        cost_usd: Cost in USD.
+        workflow_execution_id: n8n workflow ID.
+        execution_id: Unique execution ID.
+        mission: Mission name.
+
+    Returns:
+        Populated ExecutionLog instance.
+    """
+    article_logs = [
+        ArticleLog(
+            title=a.title,
+            url=a.url,
+            source=a.source,
+            pub_date=a.pub_date,
+            description_preview=a.description[:100] if a.description else "",
+        )
+        for a in articles
+    ]
+
+    metrics = ExecutionMetrics(
+        prompt_length=len(prompt),
+        response_length=len(response),
+        articles_received=len(articles),
+        duration_seconds=duration,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_cost_usd=cost_usd,
+    )
+
+    log_kwargs: dict[str, Any] = {
+        "success": success,
+        "error": error,
+        "workflow_execution_id": workflow_execution_id,
+        "articles": article_logs,
+        "prompt_sent": prompt,
+        "claude_response": response,
+        "timeline": timeline or [],
+        "metrics": metrics,
+        "mission": mission,
+    }
+    if execution_id:
+        log_kwargs["execution_id"] = execution_id
+
+    return ExecutionLog(**log_kwargs)

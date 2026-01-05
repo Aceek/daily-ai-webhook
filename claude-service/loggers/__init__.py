@@ -1,6 +1,5 @@
 """Loggers module - Execution and workflow logging."""
 
-from loggers.execution_logger import create_execution_log
 from loggers.models import (
     ArticleLog,
     DiscordChannelLog,
@@ -11,6 +10,7 @@ from loggers.models import (
     NodeExecutionLog,
     StreamEvent,
     WorkflowLog,
+    create_execution_log,
 )
 from loggers.unified_logger import UnifiedLogger, get_logger
 
