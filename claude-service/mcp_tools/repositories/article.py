@@ -106,7 +106,7 @@ class ArticleRepository:
             LEFT JOIN categories c ON a.category_id = c.id
             WHERE a.mission_id = %s
               AND a.status = 'selected'
-              AND a.created_at >= NOW() - INTERVAL '%s days'
+              AND a.created_at >= NOW() - make_interval(days => %s)
             ORDER BY a.created_at DESC
             LIMIT 50
             """,
