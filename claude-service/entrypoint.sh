@@ -10,9 +10,15 @@ umask 002
 setup_claude_config() {
     echo "[entrypoint] Setting up Claude CLI config..."
 
-    # Create /root/.claude directory
-    rm -rf /root/.claude
-    mkdir -p /root/.claude
+    # Prepare /root/.claude directory
+    # If it's a volume mount, clear contents; otherwise recreate
+    if mountpoint -q /root/.claude 2>/dev/null; then
+        # It's a mount point, just clear contents (preserve runtime data like credentials)
+        find /root/.claude -mindepth 1 -maxdepth 1 -name "missions" -o -name "CLAUDE.md" -o -name "docs" | xargs rm -rf 2>/dev/null || true
+    else
+        rm -rf /root/.claude
+        mkdir -p /root/.claude
+    fi
 
     # Copy config files from mounted volume
     if [ -d "/app/.claude" ]; then
